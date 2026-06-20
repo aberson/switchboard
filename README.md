@@ -21,7 +21,15 @@ Built to the D1 contract pinned in
 - `switchboard/health.py` — `health()` / `is_warm()` / `warm_up()` reachability + warmth
   probes against `{base_url}/models`.
 - `switchboard/metrics.py` — `Metrics`: in-process counter (total / verdicts / defers-by-
-  reason) the Step 4 validation harness reads to prove quota saved.
+  reason) the validation harness reads to prove quota saved.
+- `switchboard/cli.py` — the judge entrypoint skills invoke:
+  `python -m switchboard judge --site <task_class> --prompt-file <path>` → one JSON object
+  (verdict or defer) on stdout, always exit 0. Gated by config — returns a defer with no
+  network call when offload is off or the site is disabled (inert by default).
+- `switchboard/harness.py` — `run_shadow(...)`: shadow-mode validation. Compares the local
+  verdict against an expected (Claude) label, reports agreement + quota saved, and applies a
+  kill criterion (revert if disagreement exceeds the threshold, default 0.20). `run_shadow_live.py`
+  re-measures against the live endpoint.
 
 ## Key contract points
 
