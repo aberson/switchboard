@@ -1,18 +1,25 @@
-"""Optional live smoke against a running local endpoint.
+"""``python -m switchboard`` entrypoint.
 
-NOT part of the test suite — the unit tests stub the HTTP boundary and never touch the
-network. Run this manually when a llama-swap host is up on localhost:8080:
+Two modes, dispatched on argv:
 
-    uv run python -m switchboard
+* ``python -m switchboard judge --site <task_class> ...`` — the CLI judge entrypoint a
+  SKILL.md invokes (see ``switchboard.cli``). Prints a verdict-or-defer JSON; always exit 0.
+* ``python -m switchboard`` (no subcommand) — an OPTIONAL live smoke against a running local
+  endpoint. NOT part of the test suite — the unit tests stub the HTTP boundary and never
+  touch the network. Run it manually when a llama-swap host is up on localhost:8080:
 
-It probes /models, fires a pass-case and a flag-case judge call (cold timeout on the
-first), demonstrates the disabled short-circuit, and prints the metrics snapshot.
+      uv run python -m switchboard
+
+  It probes /models, fires a pass-case and a flag-case judge call (cold timeout on the
+  first), demonstrates the disabled short-circuit, and prints the metrics snapshot.
 """
 
 from __future__ import annotations
 
 import json
+import sys
 
+from switchboard.cli import main as cli_main
 from switchboard.client import local_judge
 from switchboard.config import SwitchboardConfig
 from switchboard.health import health
@@ -68,4 +75,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    # A subcommand (e.g. `judge`) routes to the CLI; bare invocation runs the live smoke.
+    if len(sys.argv) > 1:
+        raise SystemExit(cli_main(sys.argv[1:]))
     main()
