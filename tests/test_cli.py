@@ -12,17 +12,35 @@ Like test_client, network is stubbed (patch_client) — these tests never call t
 from __future__ import annotations
 
 import json
+import urllib.error
 from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 
 from switchboard.cli import main, run_judge
 from switchboard.config import SwitchboardConfig
-from switchboard.metrics import Metrics
-from tests.conftest import PASS_CONTENT, chat_envelope, make_json_urlopen
+from switchboard.metrics import METRICS, Metrics
+from tests.conftest import (
+    PASS_CONTENT,
+    chat_envelope,
+    make_json_urlopen,
+    make_raising_urlopen,
+)
 
 UrlopenStub = Callable[..., object]
 ApplyStub = Callable[[UrlopenStub], None]
+
+
+@pytest.fixture(autouse=True)
+def _isolate_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """``main()`` now calls ``load_config()``; keep every CLI test hermetic from the operator's
+    real ``$SWITCHBOARD_CONFIG`` and ``~/.switchboard/config.json``. Tests that exercise the
+    loader opt back in by re-setting the env / passing --path (an explicit source beats the
+    absent home this fixture installs).
+    """
+    monkeypatch.delenv("SWITCHBOARD_CONFIG", raising=False)
+    monkeypatch.setattr("switchboard.config._default_config_path", lambda: tmp_path / "absent.json")
 
 
 # --- run_judge: gating short-circuit is inert (no network) -------------------------------
@@ -106,3 +124,170 @@ def test_read_prompt_precedence_prompt_over_file(tmp_path: pytest.TempPathFactor
     # Explicit --prompt wins over --prompt-file.
     assert _read_prompt(str(p), "from-string") == "from-string"
     assert _read_prompt(str(p), None) == "from-file"
+
+
+# --- Step 2: defer-safe config load on the judge hot path --------------------------------
+
+
+def test_main_judge_missing_config_defers_config_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # A broken (missing) $SWITCHBOARD_CONFIG must NOT crash the judge: stdout gets a
+    # config_error defer, exit is 0, and a non-empty warning goes to stderr (not stdout).
+    monkeypatch.setenv("SWITCHBOARD_CONFIG", str(tmp_path / "missing.json"))
+    rc = main(["judge", "--site", "review-deep-style", "--prompt", "x"])
+    assert rc == 0
+    captured = capsys.readouterr()
+    out = json.loads(captured.out)  # exactly one JSON object on stdout
+    assert out["defer"] is True
+    assert out["reason_class"] == "config_error"
+    assert captured.err.strip() != ""  # warning went to stderr
+
+
+def test_main_judge_malformed_config_defers_config_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    bad = tmp_path / "bad.json"
+    bad.write_text("{not valid json", encoding="utf-8")
+    monkeypatch.setenv("SWITCHBOARD_CONFIG", str(bad))
+    rc = main(["judge", "--site", "review-deep-style", "--prompt", "x"])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["reason_class"] == "config_error"
+
+
+def test_main_judge_config_error_records_metric(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # The config_error defer is counted into the module METRICS like every other defer reason.
+    monkeypatch.setenv("SWITCHBOARD_CONFIG", str(tmp_path / "missing.json"))
+    before = METRICS.defers["config_error"]
+    main(["judge", "--site", "review-deep-style", "--prompt", "x"])
+    assert METRICS.defers["config_error"] == before + 1
+
+
+def test_main_judge_missing_prompt_file_defers_safely(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # A provided-but-missing --prompt-file is well-formed per argparse, so the judge must defer
+    # (exit 0, one JSON object on stdout) rather than crash with a traceback.
+    rc = main(["judge", "--site", "review-deep-style", "--prompt-file", str(tmp_path / "nope.txt")])
+    assert rc == 0
+    captured = capsys.readouterr()
+    out = json.loads(captured.out)
+    assert out["defer"] is True
+    assert out["reason_class"] == "input_error"
+    assert captured.err.strip() != ""  # warning to stderr
+
+
+def test_main_judge_bad_encoding_prompt_file_defers_safely(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    bad = tmp_path / "prompt-bad-utf8.txt"
+    bad.write_bytes(b"\xff\xfe not valid utf-8")
+    rc = main(["judge", "--site", "review-deep-style", "--prompt-file", str(bad)])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["defer"] is True
+    assert out["reason_class"] == "input_error"
+
+
+def test_main_loaded_config_reaches_local_judge(
+    patch_client: ApplyStub,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # INTEGRATION through the production caller (main -> load_config -> run_judge -> local_judge).
+    # A config file ENABLES review-deep-style; the network is stubbed to RAISE URLError. If the
+    # loaded config reached local_judge and flipped offload_allowed, we get PAST the disabled
+    # short-circuit and hit the network -> defer reason_class == "unreachable" (NOT "disabled").
+    # If the wiring were broken (config not threaded through), the default config would short-
+    # circuit with "disabled" — so asserting "unreachable" proves the seam end-to-end.
+    cfgfile = tmp_path / "on.json"
+    cfgfile.write_text(
+        json.dumps({"enabled_call_sites": {"review-deep-style": True}}), encoding="utf-8"
+    )
+    monkeypatch.setenv("SWITCHBOARD_CONFIG", str(cfgfile))
+    patch_client(make_raising_urlopen(urllib.error.URLError("connection refused")))
+    rc = main(["judge", "--site", "review-deep-style", "--prompt", "x"])
+    assert rc == 0
+    out = json.loads(capsys.readouterr().out)
+    assert out["defer"] is True
+    assert out["reason_class"] == "unreachable"  # reached the network => config was applied
+
+
+# --- Step 2: the `config` subcommand (loud pre-flight) -----------------------------------
+
+
+def test_config_subcommand_valid_exits_0_reports_source_and_on(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cfgfile = tmp_path / "cfg.json"
+    cfgfile.write_text(
+        json.dumps({"enabled_call_sites": {"review-deep-style": True}}), encoding="utf-8"
+    )
+    monkeypatch.setenv("SWITCHBOARD_CONFIG", str(cfgfile))
+    rc = main(["config"])
+    assert rc == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["source"] == f"env:{cfgfile}"
+    assert report["offload_active"] is True
+    assert "review-deep-style" in report["enabled_sites"]
+
+
+def test_config_subcommand_broken_exits_nonzero_with_stderr(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setenv("SWITCHBOARD_CONFIG", str(tmp_path / "missing.json"))
+    rc = main(["config"])
+    assert rc != 0
+    assert capsys.readouterr().err.strip() != ""
+
+
+def test_config_subcommand_defaults_when_unset(capsys: pytest.CaptureFixture[str]) -> None:
+    # autouse _isolate_config unsets env + points home at an absent file => "defaults".
+    rc = main(["config"])
+    assert rc == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["source"] == "defaults"
+    assert report["offload_active"] is False
+
+
+def test_config_subcommand_reports_off_when_less_token_mode_false(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    cfgfile = tmp_path / "off.json"
+    cfgfile.write_text(
+        json.dumps({"less_token_mode": False, "enabled_call_sites": {"review-deep-style": True}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SWITCHBOARD_CONFIG", str(cfgfile))
+    rc = main(["config"])
+    assert rc == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["offload_active"] is False
+    assert report["enabled_sites"] == []
+
+
+def test_config_subcommand_path_validates_specific_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # --path validates an arbitrary file (D5): check /offload-scan's output before installing.
+    cfgfile = tmp_path / "candidate.json"
+    cfgfile.write_text(
+        json.dumps({"enabled_call_sites": {"skill-iterate-grader": True}}), encoding="utf-8"
+    )
+    rc = main(["config", "--path", str(cfgfile)])
+    assert rc == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["source"] == f"arg:{cfgfile}"
+    assert "skill-iterate-grader" in report["enabled_sites"]
+
+
+def test_config_subcommand_path_broken_file_exits_nonzero(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = main(["config", "--path", str(tmp_path / "nope.json")])
+    assert rc != 0
+    assert capsys.readouterr().err.strip() != ""

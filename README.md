@@ -17,15 +17,20 @@ Built to the D1 contract pinned in
   documented failure conditions.
 - `switchboard/config.py` — `SwitchboardConfig`: the `less_token_mode` global toggle, the
   `enabled_call_sites` (`task_class -> bool | model`) map, and endpoint/timeout/`max_tokens`
-  defaults (validated at construction).
+  defaults (validated at construction). `load_config()` resolves an operator config
+  (explicit arg → `$SWITCHBOARD_CONFIG` → `~/.switchboard/config.json` → inert defaults) and
+  `from_mapping()` rejects unknown keys with a clean `ConfigError` (see "Turning offload on/off").
 - `switchboard/health.py` — `health()` / `is_warm()` / `warm_up()` reachability + warmth
   probes against `{base_url}/models`.
 - `switchboard/metrics.py` — `Metrics`: in-process counter (total / verdicts / defers-by-
   reason) the validation harness reads to prove quota saved.
 - `switchboard/cli.py` — the judge entrypoint skills invoke:
   `python -m switchboard judge --site <task_class> --prompt-file <path>` → one JSON object
-  (verdict or defer) on stdout, always exit 0. Gated by config — returns a defer with no
-  network call when offload is off or the site is disabled (inert by default).
+  (verdict or defer) on stdout, always exit 0. Loads the operator config defer-safely (a broken
+  config or unreadable prompt degrades to a defer, never a crash). Gated by config — returns a
+  defer with no network call when offload is off or the site is disabled (inert by default).
+  Also exposes `python -m switchboard config [--path PATH]` — the loud pre-flight that validates
+  and prints the effective config + its source.
 - `switchboard/harness.py` — `run_shadow(...)`: shadow-mode validation. Compares the local
   verdict against an expected (Claude) label, reports agreement + quota saved, and applies a
   kill criterion (revert if disagreement exceeds the threshold, default 0.20). `run_shadow_live.py`
@@ -41,6 +46,68 @@ Built to the D1 contract pinned in
 - When `less_token_mode` is OFF (or the call site is not enabled), `local_judge`
   short-circuits to the defer sentinel **without** calling the endpoint.
 - **One model** (`general-35b`) for all slices — no model-swap routing (D2).
+
+## Turning offload on/off
+
+Offload is **OFF by default**: with no config present, every `judge` call defers to Claude and
+behaviour is byte-identical to not having Switchboard wired at all. Turning it on is "drop a
+file (or set an env var) + verify" — no code edit.
+
+**Config resolution order** (first hit wins), implemented by `config.load_config()`:
+
+1. an explicit `--path` (the `config` subcommand only) → source `arg:<path>`
+2. `$env:SWITCHBOARD_CONFIG` — a per-shell override → source `env:<path>`
+3. `~/.switchboard/config.json` (`$HOME\.switchboard\config.json` on Windows) — the global switch → source `home:<path>`
+4. none of the above → inert defaults (offload off) → source `defaults`
+
+### Turn it ON
+
+```powershell
+# 1. Generate a config from your own skills (writes .\offload-scan-out\offload-config.json).
+#    /offload-scan classifies each skill and emits only the local-safe judge/grader slices.
+
+# 2. Validate it BEFORE installing (catches a bad shape early; exits non-zero if invalid):
+uv run python -m switchboard config --path .\offload-scan-out\offload-config.json
+
+# 3a. Install globally — copy to the home default:
+New-Item -ItemType Directory -Force "$HOME\.switchboard" | Out-Null
+Copy-Item .\offload-scan-out\offload-config.json "$HOME\.switchboard\config.json"
+
+# 3b. ...OR point at it for this shell only (an env var overrides the home file):
+$env:SWITCHBOARD_CONFIG = "$HOME\.switchboard\config.json"
+
+# 4. Verify it is actually on (the loud pre-flight):
+uv run python -m switchboard config
+```
+
+`config` prints the effective config as JSON: `source` (which file won), `offload_active`
+(`true` when at least one site would offload right now), `less_token_mode` (the global
+toggle), `enabled_sites`, and the endpoint knobs. If `offload_active` is `true`, offload is
+live for those sites.
+
+The **local endpoint must be up** (llama-swap serving `general-35b` on `localhost:8080`) for a
+judge to return a *verdict*; if it is down, judges *defer* (`reason_class: unreachable`) — still
+safe, just no quota saved.
+
+### Turn it OFF
+
+Any one of:
+
+```powershell
+Remove-Item "$HOME\.switchboard\config.json"   # remove the global switch
+Remove-Item Env:\SWITCHBOARD_CONFIG            # drop the per-shell override
+```
+
+...or set `"less_token_mode": false` in the config file (keeps the file, disables all offload).
+Re-run `uv run python -m switchboard config` to confirm `offload_active: false`.
+
+### Defer-safety
+
+A broken config **never** crashes a skill: the `judge` hot path catches the error, writes a
+one-line warning to stderr, and emits a `config_error` defer to stdout (exit 0) so the skill
+falls back to Claude. The `config` subcommand is the loud counterpart — it exits non-zero and
+prints the validation error so you can fix it. `build-step-style` stays disabled even when a
+config enables other sites (Switchboard Decision 3 — the local model never owns a gate).
 
 ## Dev
 
