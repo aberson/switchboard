@@ -62,6 +62,8 @@ RC_NON_JSON_BODY = "non_json_body"  # condition 4
 RC_BAD_ENVELOPE = "bad_envelope"  # condition 5: missing choices[0].message
 RC_TRUNCATED = "truncated"  # condition 6: finish_reason=length, no verdict
 RC_BAD_VERDICT = "bad_verdict"  # condition 7: unparseable / wrong-shape verdict
+RC_CONFIG_ERROR = "config_error"  # judge CLI: load_config() failed -> defer-safe Claude fallback
+RC_INPUT_ERROR = "input_error"  # judge CLI: prompt read failed (unreadable --prompt-file/stdin)
 
 
 def _defer(reason: str, reason_class: str, elapsed: float) -> Defer:
@@ -71,6 +73,26 @@ def _defer(reason: str, reason_class: str, elapsed: float) -> Defer:
         "reason_class": reason_class,
         "_elapsed_s": elapsed,
     }
+
+
+def config_error_defer(reason: str) -> Defer:
+    """Build the defer sentinel the judge CLI emits when ``load_config()`` fails.
+
+    Kept beside ``_defer`` (not built inline in the CLI) so the Defer sentinel shape has ONE
+    source of truth. ``_elapsed_s`` is 0.0 — no network call happened. The CLI pairs this with
+    ``METRICS.record_defer(RC_CONFIG_ERROR)`` so config-error defers are counted like any other.
+    """
+    return _defer(reason, RC_CONFIG_ERROR, 0.0)
+
+
+def input_error_defer(reason: str) -> Defer:
+    """Build the defer sentinel the judge CLI emits when the prompt itself can't be read.
+
+    A provided-but-unreadable ``--prompt-file`` (missing/locked/non-UTF8) or a failed stdin read
+    is a well-formed invocation per argparse, so the judge defers rather than crashing — same
+    defer-safe contract as ``config_error_defer``. ``_elapsed_s`` is 0.0 — no network call.
+    """
+    return _defer(reason, RC_INPUT_ERROR, 0.0)
 
 
 def _extract_json_object(text: str) -> dict[str, object] | None:

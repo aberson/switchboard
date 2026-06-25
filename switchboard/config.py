@@ -15,8 +15,13 @@ fails loudly at the boundary rather than silently producing a bad request later.
 
 from __future__ import annotations
 
+import json
+import os
 import re
-from dataclasses import dataclass, field
+from collections.abc import Mapping
+from dataclasses import dataclass, field, fields
+from pathlib import Path
+from typing import Any, cast
 
 # --- Spike-pinned defaults (docs/investigations/switchboard-spike.md, D1 contract) -------
 DEFAULT_BASE_URL = "http://localhost:8080/v1"
@@ -120,6 +125,26 @@ class SwitchboardConfig:
                 f"(general-35b is a reasoning model), got {self.max_tokens!r}"
             )
 
+    @classmethod
+    def from_mapping(cls, data: Mapping[str, object]) -> SwitchboardConfig:
+        """Construct from a mapping, rejecting any unknown top-level key with ConfigError.
+
+        ``SwitchboardConfig(**data)`` would raise a raw ``TypeError`` on an unexpected kwarg;
+        this surfaces a clean ``ConfigError`` naming the offending key(s) instead. Value
+        validation is still done by ``__post_init__`` once the keys are known-good. The
+        allow-list is the single source of truth ``ALLOWED_TOP_LEVEL_FIELDS`` (derived from
+        the dataclass fields) so the producer (/offload-scan), this consumer, and the
+        round-trip test can never drift — see code-quality.md one-source-of-truth discipline.
+        """
+        unknown = set(data) - ALLOWED_TOP_LEVEL_FIELDS
+        if unknown:
+            raise ConfigError(
+                f"unknown config key(s): {sorted(unknown)}; "
+                f"allowed: {sorted(ALLOWED_TOP_LEVEL_FIELDS)}"
+            )
+        # Values are object-typed at the boundary; __post_init__ does the real validation.
+        return cls(**cast("Mapping[str, Any]", data))
+
     def is_call_site_enabled(self, task_class: str) -> bool:
         """True if this call site may offload locally (given less_token_mode is ON).
 
@@ -148,3 +173,78 @@ class SwitchboardConfig:
         if task_class is None:
             return True
         return self.is_call_site_enabled(task_class)
+
+
+# The single source of truth for "which top-level keys a config file may contain": the
+# dataclass field set. from_mapping() and the offload-scan round-trip test both import this,
+# so adding a config field can never desync the producer, the consumer, and the test.
+ALLOWED_TOP_LEVEL_FIELDS: frozenset[str] = frozenset(f.name for f in fields(SwitchboardConfig))
+
+# Env var an operator sets to point at a config file (highest precedence after an explicit arg).
+ENV_VAR = "SWITCHBOARD_CONFIG"
+
+
+def _default_config_path() -> Path:
+    """The home-directory default config location.
+
+    Factored into its own function so tests can monkeypatch it and never read a real
+    ``~/.switchboard/config.json`` that happens to exist on the dev machine.
+    """
+    return Path.home() / ".switchboard" / "config.json"
+
+
+def load_config(path: str | None = None) -> tuple[SwitchboardConfig, str]:
+    """Resolve, read, and validate a Switchboard config; return ``(config, source_label)``.
+
+    Resolution order (first hit wins):
+
+      1. explicit ``path`` arg                 -> source ``"arg:<path>"``
+      2. ``$SWITCHBOARD_CONFIG`` env var       -> source ``"env:<path>"``
+      3. ``~/.switchboard/config.json``        -> source ``"home:<path>"``
+      4. none of the above                     -> ``(SwitchboardConfig(), "defaults")``
+
+    Tiers 1 and 2 are *explicit*: the operator named a file, so a missing/unreadable/invalid
+    one raises ``ConfigError`` — silently ignoring it would be the silent-off failure mode
+    operators hate. Tier 3 is *implicit*: it counts as a source only when the file exists; a
+    missing home file falls through to inert defaults (byte-identical to today). Once a file is
+    selected, any read / JSON / validation failure raises ``ConfigError`` regardless of tier.
+
+    The ``judge`` hot path wraps this defer-safely (a ConfigError there degrades to a Claude
+    fallback, never a crash); the ``config`` subcommand lets it raise so the operator sees it.
+    """
+    candidate: str | None = None
+    label_prefix = ""
+    require_exists = False
+
+    if path is not None:
+        candidate, label_prefix, require_exists = path, "arg", True
+    else:
+        env_path = os.environ.get(ENV_VAR)
+        if env_path:
+            candidate, label_prefix, require_exists = env_path, "env", True
+        else:
+            home = _default_config_path()
+            if home.is_file():
+                # Already confirmed to exist; treat any later read failure as an error.
+                candidate, label_prefix = str(home), "home"
+
+    if candidate is None:
+        return SwitchboardConfig(), "defaults"
+
+    p = Path(candidate)
+    if require_exists and not p.is_file():
+        raise ConfigError(f"config file not found: {candidate!r}")
+
+    try:
+        with p.open(encoding="utf-8") as fh:
+            raw = json.load(fh)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        # UnicodeDecodeError (invalid UTF-8 bytes) subclasses ValueError, NOT OSError — it must
+        # be caught explicitly or it escapes as a non-ConfigError and breaks defer-safety.
+        raise ConfigError(f"could not read config {candidate!r}: {exc}") from exc
+
+    if not isinstance(raw, dict):
+        raise ConfigError(f"config {candidate!r} must be a JSON object, got {type(raw).__name__}")
+
+    cfg = SwitchboardConfig.from_mapping(cast("Mapping[str, object]", raw))
+    return cfg, f"{label_prefix}:{candidate}"

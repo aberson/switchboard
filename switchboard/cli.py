@@ -30,8 +30,15 @@ import json
 import sys
 from collections.abc import Sequence
 
-from switchboard.client import JudgeResult, local_judge
-from switchboard.config import SwitchboardConfig
+from switchboard.client import (
+    RC_CONFIG_ERROR,
+    RC_INPUT_ERROR,
+    JudgeResult,
+    config_error_defer,
+    input_error_defer,
+    local_judge,
+)
+from switchboard.config import ConfigError, SwitchboardConfig, load_config
 from switchboard.metrics import METRICS, Metrics
 
 
@@ -70,6 +77,46 @@ def run_judge(
         task_class=slice_name,
         metrics=metrics if metrics is not None else METRICS,
     )
+
+
+def _emit(result: JudgeResult) -> None:
+    """Write EXACTLY one JSON object + newline to stdout — the caller's parse contract."""
+    json.dump(result, sys.stdout)
+    sys.stdout.write("\n")
+
+
+def _run_config(path: str | None) -> int:
+    """The ``config`` subcommand: resolve + validate the effective config and print a JSON
+    report (including its source) to stdout, exit 0. On a broken config, print the error to
+    stderr and exit non-zero.
+
+    This is the operator's loud "is offload actually on?" pre-flight — the antidote to
+    silent-off. Per Design Decision D2 the judge hot path stays defer-safe and quiet; this is
+    where the loudness lives. With ``--path`` it validates an arbitrary file (e.g. check
+    /offload-scan's freshly written offload-config.json before installing it to ~/.switchboard).
+    """
+    try:
+        config, source = load_config(path)
+    except ConfigError as exc:
+        print(f"switchboard config: INVALID - {exc}", file=sys.stderr)
+        return 1
+
+    enabled = sorted(tc for tc in config.enabled_call_sites if config.offload_allowed(tc))
+    report: dict[str, object] = {
+        "source": source,
+        "offload_active": bool(enabled),  # at least one site would offload right now
+        "less_token_mode": config.less_token_mode,
+        "enabled_sites": enabled,
+        "model": config.model,
+        "base_url": config.base_url,
+        "max_tokens": config.max_tokens,
+        "cold_timeout_s": config.cold_timeout_s,
+        "warm_timeout_s": config.warm_timeout_s,
+        "enabled_call_sites": dict(config.enabled_call_sites),
+    }
+    json.dump(report, sys.stdout, indent=2)
+    sys.stdout.write("\n")
+    return 0
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -113,6 +160,18 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Use the cold timeout (first call may cold-load the model).",
     )
+
+    cfg_cmd = sub.add_parser(
+        "config",
+        help="Resolve + validate the effective config; print it as JSON (the loud pre-flight).",
+    )
+    cfg_cmd.add_argument(
+        "--path",
+        dest="path",
+        default=None,
+        help="Validate a specific config file instead of the resolved source "
+        "(e.g. check /offload-scan's offload-config.json before installing it).",
+    )
     return parser
 
 
@@ -122,11 +181,31 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "judge":
-        prompt = _read_prompt(args.prompt_file, args.prompt)
-        result = run_judge(slice_name=args.site, prompt=prompt, cold=args.cold)
-        json.dump(result, sys.stdout)
-        sys.stdout.write("\n")
+        try:
+            prompt = _read_prompt(args.prompt_file, args.prompt)
+        except (OSError, UnicodeDecodeError) as exc:
+            # Defer-safe: a provided-but-unreadable --prompt-file (missing/locked/non-UTF8) or a
+            # failed stdin read is still a well-formed invocation per argparse, so the judge must
+            # NOT crash — it degrades to a Claude defer (judge contract: exit 0, one JSON object).
+            print(f"switchboard: cannot read prompt, deferring to Claude: {exc}", file=sys.stderr)
+            METRICS.record_defer(RC_INPUT_ERROR)
+            _emit(input_error_defer(str(exc)))
+            return 0
+        try:
+            config, _ = load_config()
+        except ConfigError as exc:
+            # Defer-safe: a broken config must NEVER crash the judge — it degrades to a Claude
+            # fallback. The warning goes to stderr so stdout stays exactly one JSON object; the
+            # defer is counted into METRICS for parity with every other defer reason class.
+            print(f"switchboard: config error, deferring to Claude: {exc}", file=sys.stderr)
+            METRICS.record_defer(RC_CONFIG_ERROR)
+            _emit(config_error_defer(str(exc)))
+            return 0
+        _emit(run_judge(slice_name=args.site, prompt=prompt, config=config, cold=args.cold))
         return 0
+
+    if args.command == "config":
+        return _run_config(args.path)
 
     # argparse `required=True` on the subparser makes this unreachable, but keep it total.
     parser.error(f"unknown command {args.command!r}")  # pragma: no cover
