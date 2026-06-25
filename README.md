@@ -16,8 +16,10 @@ Built to the D1 contract pinned in
   sentinel (`{"defer": True, "reason": ..., "reason_class": ...}`) on any of the 7
   documented failure conditions.
 - `switchboard/config.py` — `SwitchboardConfig`: the `less_token_mode` global toggle, the
-  `enabled_call_sites` (`task_class -> bool | model`) map, and endpoint/timeout/`max_tokens`
-  defaults (validated at construction). `load_config()` resolves an operator config
+  `enabled_call_sites` (`task_class -> bool | model`) map, the `effort` (`task_class -> tier`)
+  map (config-only — a Claude-side dispatch hint switchboard validates + round-trips but does
+  NOT act on; `local_judge` ignores it), and endpoint/timeout/`max_tokens` defaults (validated
+  at construction). `load_config()` resolves an operator config
   (explicit arg → `$SWITCHBOARD_CONFIG` → `~/.switchboard/config.json` → inert defaults) and
   `from_mapping()` rejects unknown keys with a clean `ConfigError` (see "Turning offload on/off").
 - `switchboard/health.py` — `health()` / `is_warm()` / `warm_up()` reachability + warmth
@@ -61,6 +63,12 @@ file (or set an env var) + verify" — no code edit.
 4. none of the above → inert defaults (offload off) → source `defaults`
 
 ### Turn it ON
+
+> **Single-slice certified enablement:** to enable ONLY the bake-off-certified `review-deep-style`
+> slice (and explicitly keep `build-step-style` off), skip step 1 and use the committed
+> [`scripts/offload-config.review-deep-style.json`](scripts/offload-config.review-deep-style.json)
+> as the source in steps 2–3 — it is the review-deep-style-only enable config (`max_tokens: 2000`,
+> lifted from the 800 default because `general-35b` is a reasoning model).
 
 ```powershell
 # 1. Generate a config from your own skills (writes .\offload-scan-out\offload-config.json).

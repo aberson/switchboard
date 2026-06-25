@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from switchboard.config import (
+    ALLOWED_EFFORT_TIERS,
     DEFAULT_BASE_URL,
     DEFAULT_MAX_TOKENS,
     DEFAULT_MODEL,
@@ -142,3 +143,52 @@ def test_config_is_frozen() -> None:
     cfg = SwitchboardConfig()
     with pytest.raises((AttributeError, TypeError)):
         cfg.model = "x"  # type: ignore[misc]
+
+
+# --- effort dimension (Phase B / Step B3) ------------------------------------------------
+# HONEST SCOPE: switchboard stores + validates + round-trips ``effort`` but does NOT act on
+# it (no live consumer this phase). These tests cover validation + the read-only accessor;
+# there is intentionally no "effort changes a request" test because no such behavior exists.
+
+
+def test_effort_defaults_to_empty() -> None:
+    assert SwitchboardConfig().effort == {}
+
+
+def test_effort_accepts_allowed_tiers() -> None:
+    cfg = SwitchboardConfig(effort={"review-deep-style": "low", "skill-iterate-grader": "high"})
+    assert cfg.effort_for("review-deep-style") == "low"
+    assert cfg.effort_for("skill-iterate-grader") == "high"
+
+
+def test_effort_for_unset_task_class_is_none() -> None:
+    cfg = SwitchboardConfig(effort={"review-deep-style": "low"})
+    assert cfg.effort_for("never-configured") is None
+    assert SwitchboardConfig().effort_for("anything") is None
+
+
+@pytest.mark.parametrize("tier", sorted(ALLOWED_EFFORT_TIERS))
+def test_every_allowed_tier_is_accepted(tier: str) -> None:
+    cfg = SwitchboardConfig(effort={"slice": tier})
+    assert cfg.effort_for("slice") == tier
+
+
+def test_allowed_effort_tiers_pinned() -> None:
+    # Pin the tier set so a silent expansion/contraction is a conscious, reviewed change.
+    assert ALLOWED_EFFORT_TIERS == {"low", "medium", "high", "xhigh", "max"}
+
+
+@pytest.mark.parametrize("bad_tier", ["lowest", "LOW", "", "extreme", "1"])
+def test_effort_unknown_tier_rejected(bad_tier: str) -> None:
+    with pytest.raises(ConfigError, match="effort"):
+        SwitchboardConfig(effort={"slice": bad_tier})
+
+
+def test_effort_non_str_tier_rejected() -> None:
+    with pytest.raises(ConfigError, match="effort"):
+        SwitchboardConfig(effort={"slice": 1})  # type: ignore[dict-item]
+
+
+def test_effort_bad_task_class_name_rejected() -> None:
+    with pytest.raises(ConfigError, match="task_class"):
+        SwitchboardConfig(effort={"bad task class": "low"})

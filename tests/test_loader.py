@@ -53,6 +53,7 @@ def test_allowed_top_level_fields_is_exactly_the_known_field_set() -> None:
     assert ALLOWED_TOP_LEVEL_FIELDS == {
         "less_token_mode",
         "enabled_call_sites",
+        "effort",
         "base_url",
         "model",
         "cold_timeout_s",

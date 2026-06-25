@@ -28,6 +28,8 @@ from switchboard.harness import DEFAULT_KILL_THRESHOLD, aggregate_agreement
 
 # The committed canonical suite lives next to the package (switchboard/suites/).
 SUITE_PATH = Path(__file__).resolve().parent.parent / "suites" / "review-deep-style.json"
+# The Phase B effort-vs-model arm suite (illustrative numbers — see its top-level "note").
+EFFORT_SUITE_PATH = Path(__file__).resolve().parent.parent / "suites" / "effort-vs-model.json"
 
 
 # --- Helpers to build small in-test suites without touching disk -------------------------
@@ -340,6 +342,54 @@ def test_canonical_suite_local_passes_weak_fails() -> None:
     assert by_runner["weak"].disagreement_rate is not None
     assert by_runner["weak"].disagreement_rate > 0.20
     assert by_runner["weak"].disagreement_rate == pytest.approx(3 / 7)
+
+
+# --- Effort-vs-model arm (Phase B / Step B3): illustrative measurement, not truth ---------
+
+
+def test_effort_vs_model_arm_shows_the_tradeoff() -> None:
+    """The committed effort-vs-model suite demonstrates the downgrade-cliff hypothesis.
+
+    ILLUSTRATIVE numbers (the suite's top-level "note" says so): the point of this test is that
+    BOTH candidate arms appear in the report with their agreement/cost numbers, and the recorded
+    data encodes the claim that ``effort-low`` (a Claude effort-tier candidate) sidesteps the
+    model-downgrade quality cliff that ``model:haiku`` falls into. switchboard does not ACT on
+    ``effort`` — this is a measurement arm + recorded recommendation only (see config.effort
+    docstring + docs/effort-vs-model-recommendation.md).
+    """
+    suite = load_suite(EFFORT_SUITE_PATH)
+    report = run_bakeoff(suite)
+    by_runner = {r.runner: r for r in report.runners}
+
+    assert report.slice_name == "effort-vs-model"
+    assert report.reference_runner == "opus"
+    # Both candidate arms are present in the report alongside the reference.
+    assert set(by_runner) == {"opus", "effort-low", "haiku"}
+    assert by_runner["opus"].is_reference is True
+
+    eff = by_runner["effort-low"]
+    hk = by_runner["haiku"]
+
+    # The effort-tier arm clears the gate (no kill) and agrees better than the model-downgrade
+    # arm — the whole point of the hypothesis.
+    assert eff.kill is False
+    assert eff.agreement_rate is not None and hk.agreement_rate is not None
+    assert eff.agreement_rate > hk.agreement_rate
+
+    # The model-downgrade arm falls off the cliff: it KILLS (disagreement strictly over 20%).
+    assert hk.kill is True
+    assert hk.disagreement_rate is not None and hk.disagreement_rate > 0.20
+
+    # ...but it is cheaper — effort-low costs more than haiku. That is the recorded tradeoff:
+    # better agreement for more cost, per the recommendation doc.
+    assert eff.mean_cost_usd is not None and hk.mean_cost_usd is not None
+    assert eff.mean_cost_usd > hk.mean_cost_usd
+
+    # The numbers actually surface in the rendered report (not just the dataclasses), so an
+    # operator reading the markdown sees both arms with their agreement + cost columns.
+    md = render(report)
+    assert any("effort-low" in ln and "PASS" in ln for ln in md.splitlines())
+    assert any("haiku" in ln and "FAIL" in ln for ln in md.splitlines())
 
 
 def test_canonical_suite_renders_stably() -> None:

@@ -17,6 +17,11 @@ from switchboard.bakeoff import (
     load_suite,
     run_bakeoff,
 )
+from switchboard.certify import (
+    RECOMMENDED_MAX_TOKENS,
+    CertVerdict,
+    certify_slice,
+)
 from switchboard.client import (
     Defer,
     JudgeResult,
@@ -40,11 +45,13 @@ from switchboard.metrics import METRICS, Metrics
 
 __all__ = [
     "METRICS",
+    "RECOMMENDED_MAX_TOKENS",
     "AgreementVerdict",
     "BakeoffError",
     "BakeoffReport",
     "CaseOutcome",
     "CaseRow",
+    "CertVerdict",
     "ConfigError",
     "Defer",
     "Health",
@@ -58,6 +65,7 @@ __all__ = [
     "SwitchboardConfig",
     "Verdict",
     "aggregate_agreement",
+    "certify_slice",
     "health",
     "is_warm",
     "load_suite",

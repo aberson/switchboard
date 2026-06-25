@@ -184,6 +184,7 @@ def _run_config(path: str | None) -> int:
         "cold_timeout_s": config.cold_timeout_s,
         "warm_timeout_s": config.warm_timeout_s,
         "enabled_call_sites": dict(config.enabled_call_sites),
+        "effort": dict(config.effort),
     }
     json.dump(report, sys.stdout, indent=2)
     sys.stdout.write("\n")
