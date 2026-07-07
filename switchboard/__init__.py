@@ -42,11 +42,17 @@ from switchboard.harness import (
 )
 from switchboard.health import Health, health, is_warm, warm_up
 from switchboard.metrics import METRICS, Metrics
+from switchboard.monitor import (
+    AutoDisableResult,
+    disable_slice_on_kill,
+    monitor_deployed_slice,
+)
 
 __all__ = [
     "METRICS",
     "RECOMMENDED_MAX_TOKENS",
     "AgreementVerdict",
+    "AutoDisableResult",
     "BakeoffError",
     "BakeoffReport",
     "CaseOutcome",
@@ -66,10 +72,12 @@ __all__ = [
     "Verdict",
     "aggregate_agreement",
     "certify_slice",
+    "disable_slice_on_kill",
     "health",
     "is_warm",
     "load_suite",
     "local_judge",
+    "monitor_deployed_slice",
     "run_bakeoff",
     "run_shadow",
     "warm_up",
