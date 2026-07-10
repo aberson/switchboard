@@ -1,6 +1,8 @@
-"""Judge entrypoint CLI — so a SKILL.md can invoke ``local_judge`` from the shell.
+"""Judge + bake-off + config entrypoint CLI — so a SKILL.md (or operator) can invoke from the shell.
 
     python -m switchboard judge --site <task_class> [--prompt-file PATH | --prompt STR]
+    python -m switchboard bakeoff --suite <path> [--output-dir <dir>]
+    python -m switchboard config [--path PATH]
 
 ``--site`` is the canonical flag the wired SKILL.md prose passes (the call-site task_class);
 ``--slice`` is a back-compat alias for the same value. Exactly one must be given.
@@ -11,11 +13,21 @@ checks ``offload_allowed(slice)`` FIRST (a clean "defer: offload-disabled" with 
 when offload is off or the slice is disabled), else calls ``local_judge`` and prints the
 verdict-or-defer as JSON to stdout.
 
+The ``bakeoff`` subcommand runs the recorded-mode slice certification: it reads a frozen
+suite, scores every recorded runner against the reference (agreement + cost + latency + the
+0.20 kill verdict), writes ``report.md`` + ``scores.jsonl`` to the output dir, and prints ONE
+grep-able summary line. It is deterministic — no network, no model.
+
+The ``config`` subcommand resolves + validates the effective config and prints it as JSON —
+the operator's loud "is offload actually on?" pre-flight (the antidote to silent-off).
+
 Contract for the CALLER (a skill):
-  * exit code is ALWAYS 0 on a well-formed invocation — a ``defer`` is not an error, it is
-    the signal to fall back to the existing Claude path. The caller inspects the JSON, not
-    the exit code, to decide verdict-vs-defer.
-  * stdout is exactly one JSON object. Diagnostics go to stderr.
+  * exit code is ALWAYS 0 on a well-formed judge invocation — a ``defer`` is not an error, it
+    is the signal to fall back to the existing Claude path. The caller inspects the JSON, not
+    the exit code, to decide verdict-vs-defer. (``bakeoff`` exits 2 on a malformed suite —
+    that is an input defect, distinct from a runner verdict.)
+  * stdout is exactly one JSON object (judge) or one summary line (bakeoff). Diagnostics go to
+    stderr.
   * a usage error (bad/missing args) exits non-zero via argparse — that is a caller bug,
     distinct from a defer.
 
@@ -29,7 +41,16 @@ import argparse
 import json
 import sys
 from collections.abc import Sequence
+from pathlib import Path
 
+from switchboard.bakeoff import (
+    BakeoffError,
+    BakeoffReport,
+    load_suite,
+    render,
+    render_jsonl,
+    run_bakeoff,
+)
 from switchboard.client import (
     RC_CONFIG_ERROR,
     RC_INPUT_ERROR,
@@ -40,6 +61,9 @@ from switchboard.client import (
 )
 from switchboard.config import ConfigError, SwitchboardConfig, load_config
 from switchboard.metrics import METRICS, Metrics
+
+# Default output dir for `bakeoff` when --output-dir is omitted: a repo-local _tmp/ sibling.
+DEFAULT_BAKEOFF_OUTPUT = "_tmp"
 
 
 def _read_prompt(prompt_file: str | None, prompt: str | None) -> str:
@@ -79,6 +103,53 @@ def run_judge(
     )
 
 
+def _bakeoff_summary_line(report: BakeoffReport, output_dir: Path) -> str:
+    """One grep-able stdout line summarizing a recorded bake-off run.
+
+    Names the slice, the runner count, and the PASS/FAIL gate per non-reference runner so a
+    calling shell can grep the result without parsing report.md. Reference is excluded from
+    the pass/fail roll-up (it agrees with itself by construction).
+    """
+    candidates = [r for r in report.runners if not r.is_reference]
+    passed = sum(1 for r in candidates if not r.kill)
+    failed = len(candidates) - passed
+    gates = " ".join(f"{r.runner}={'FAIL' if r.kill else 'PASS'}" for r in candidates)
+    return (
+        f"bakeoff complete: slice={report.slice_name} n_cases={report.n_cases} "
+        f"runners={len(report.runners)} candidates={len(candidates)} "
+        f"pass={passed} fail={failed} [{gates}] kill_threshold={report.kill_threshold:.0%} "
+        f"output={output_dir}"
+    )
+
+
+def run_bakeoff_cli(
+    *,
+    suite_path: str,
+    output_dir: str | None = None,
+    stdout: object = None,
+) -> int:
+    """Read a frozen suite, run the recorded bake-off, write outputs, print the summary line.
+
+    Returns the process exit code: 0 on success, 2 on a malformed suite (an input defect,
+    surfaced to stderr). Deterministic — no network, no model.
+    """
+    out = stdout if stdout is not None else sys.stdout
+    try:
+        suite = load_suite(suite_path)
+    except (BakeoffError, OSError) as exc:
+        print(f"error: failed to load suite {suite_path}: {exc}", file=sys.stderr)
+        return 2
+
+    report = run_bakeoff(suite)
+    out_dir = Path(output_dir) if output_dir else Path(DEFAULT_BAKEOFF_OUTPUT)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "report.md").write_text(render(report), encoding="utf-8")
+    (out_dir / "scores.jsonl").write_text(render_jsonl(report), encoding="utf-8")
+
+    print(_bakeoff_summary_line(report, out_dir), file=out)  # type: ignore[arg-type]
+    return 0
+
+
 def _emit(result: JudgeResult) -> None:
     """Write EXACTLY one JSON object + newline to stdout — the caller's parse contract."""
     json.dump(result, sys.stdout)
@@ -113,6 +184,7 @@ def _run_config(path: str | None) -> int:
         "cold_timeout_s": config.cold_timeout_s,
         "warm_timeout_s": config.warm_timeout_s,
         "enabled_call_sites": dict(config.enabled_call_sites),
+        "effort": dict(config.effort),
     }
     json.dump(report, sys.stdout, indent=2)
     sys.stdout.write("\n")
@@ -161,6 +233,26 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Use the cold timeout (first call may cold-load the model).",
     )
 
+    bakeoff = sub.add_parser(
+        "bakeoff",
+        help=(
+            "Score a frozen suite's recorded runners against the reference "
+            "(agreement + cost + latency + 0.20 kill); write report.md + scores.jsonl."
+        ),
+    )
+    bakeoff.add_argument(
+        "--suite",
+        dest="suite",
+        required=True,
+        help="Path to the frozen bake-off suite JSON (e.g. switchboard/suites/<slice>.json).",
+    )
+    bakeoff.add_argument(
+        "--output-dir",
+        dest="output_dir",
+        default=None,
+        help=f"Where to write report.md + scores.jsonl (default './{DEFAULT_BAKEOFF_OUTPUT}').",
+    )
+
     cfg_cmd = sub.add_parser(
         "config",
         help="Resolve + validate the effective config; print it as JSON (the loud pre-flight).",
@@ -203,6 +295,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         _emit(run_judge(slice_name=args.site, prompt=prompt, config=config, cold=args.cold))
         return 0
+
+    if args.command == "bakeoff":
+        return run_bakeoff_cli(suite_path=args.suite, output_dir=args.output_dir)
 
     if args.command == "config":
         return _run_config(args.path)

@@ -41,6 +41,92 @@ from switchboard.metrics import Metrics
 DEFAULT_KILL_THRESHOLD = 0.20
 
 
+@dataclass(frozen=True, slots=True)
+class AgreementVerdict:
+    """The pure agreement + kill math for a single runner, derived from verdicted/agreed counts.
+
+    This is the ONE source of truth for the "defer excluded from the denominator" rule AND
+    the "kill iff disagreement strictly exceeds the threshold" rule. Both ``run_shadow`` (live
+    local judge) and the recorded-output bake-off (``bakeoff.py``) call ``aggregate_agreement``
+    so the threshold and the defer-exclusion are NEVER re-derived in a second place — the
+    code-quality.md "one source of truth for data-shape constants" discipline applied to a rule.
+
+    A defer is NOT supplied here: callers count only the cases the runner actually verdicted
+    (``verdicted``) and how many of those matched the reference (``agreements``). Deferred cases
+    were already dropped before this is called, so they cannot influence the rate or the kill.
+    """
+
+    verdicted: int  # cases the runner returned a real verdict for (defers already excluded)
+    agreements: int  # of verdicted, how many matched the reference verdict
+    disagreements: int
+    agreement_rate: float | None  # agreements / verdicted, or None if nothing verdicted
+    disagreement_rate: float | None
+    kill_threshold: float
+    kill: bool  # disagreement_rate strictly > kill_threshold
+    kill_reason: str
+
+
+def aggregate_agreement(
+    *,
+    verdicted: int,
+    agreements: int,
+    kill_threshold: float = DEFAULT_KILL_THRESHOLD,
+) -> AgreementVerdict:
+    """Compute agreement, disagreement, and the kill verdict from verdicted/agreed counts.
+
+    The single shared implementation of the offload kill rule. Defers must ALREADY be
+    excluded by the caller (``verdicted`` counts only real verdicts); this function never sees
+    them, which is exactly why a defer cannot move the disagreement rate or trip the kill.
+
+    The kill is ``disagreement_rate > kill_threshold`` — STRICTLY greater, so a runner sitting
+    exactly at the threshold PASSES. All-deferred (``verdicted == 0``) cannot kill: there is
+    nothing to judge.
+
+    Args:
+        verdicted: number of cases the runner produced a real pass/flag verdict for.
+        agreements: of those, how many matched the reference verdict.
+        kill_threshold: the disagreement ceiling in [0, 1] (default 0.20).
+
+    Raises:
+        ValueError: if ``kill_threshold`` is outside [0, 1] or the counts are inconsistent.
+    """
+    if not 0.0 <= kill_threshold <= 1.0:
+        raise ValueError(f"kill_threshold must be in [0, 1], got {kill_threshold!r}")
+    if verdicted < 0 or agreements < 0 or agreements > verdicted:
+        raise ValueError(
+            f"inconsistent counts: agreements={agreements}, verdicted={verdicted} "
+            f"(require 0 <= agreements <= verdicted)"
+        )
+
+    disagreements = verdicted - agreements
+    agreement_rate = (agreements / verdicted) if verdicted else None
+    disagreement_rate = (disagreements / verdicted) if verdicted else None
+
+    if disagreement_rate is None:
+        kill = False
+        kill_reason = "no verdicts produced (all deferred) — nothing to judge, cannot kill"
+    elif disagreement_rate > kill_threshold:
+        kill = True
+        kill_reason = (
+            f"disagreement {disagreement_rate:.0%} > threshold {kill_threshold:.0%} "
+            f"— REVERT offload for this slice"
+        )
+    else:
+        kill = False
+        kill_reason = f"disagreement {disagreement_rate:.0%} <= threshold {kill_threshold:.0%}"
+
+    return AgreementVerdict(
+        verdicted=verdicted,
+        agreements=agreements,
+        disagreements=disagreements,
+        agreement_rate=agreement_rate,
+        disagreement_rate=disagreement_rate,
+        kill_threshold=kill_threshold,
+        kill=kill,
+        kill_reason=kill_reason,
+    )
+
+
 @dataclass(frozen=True)
 class ShadowCase:
     """One judge prompt plus the expected (Claude) verdict to shadow-compare against.
@@ -170,10 +256,12 @@ def run_shadow(
     verdicted = sum(1 for o in outcomes if not o.deferred)
     deferred_count = sum(1 for o in outcomes if o.deferred)
     agreements = sum(1 for o in outcomes if o.agreed)
-    disagreements = verdicted - agreements
 
-    agreement_rate = (agreements / verdicted) if verdicted else None
-    disagreement_rate = (disagreements / verdicted) if verdicted else None
+    # The agreement + kill math comes from the ONE shared helper so the threshold and the
+    # "defer excluded from the denominator" rule are never re-derived here or in bakeoff.py.
+    agg = aggregate_agreement(
+        verdicted=verdicted, agreements=agreements, kill_threshold=kill_threshold
+    )
 
     # Quota saved == Claude calls avoided == the number of real local verdicts. The metrics
     # counter's verdict_total is the same number through an independent path; assert they
@@ -183,34 +271,21 @@ def run_shadow(
         f"quota accounting drift: metrics verdict_total={quota_saved} != verdicted={verdicted}"
     )
 
-    if disagreement_rate is None:
-        kill = False
-        kill_reason = "no verdicts produced (all deferred) — nothing to judge, cannot kill"
-    elif disagreement_rate > kill_threshold:
-        kill = True
-        kill_reason = (
-            f"disagreement {disagreement_rate:.0%} > threshold {kill_threshold:.0%} "
-            f"— REVERT offload for this slice"
-        )
-    else:
-        kill = False
-        kill_reason = f"disagreement {disagreement_rate:.0%} <= threshold {kill_threshold:.0%}"
-
     elapsed_values = [o.elapsed_s for o in outcomes if not o.deferred]
     avg_elapsed = (sum(elapsed_values) / len(elapsed_values)) if elapsed_values else None
 
     return ShadowReport(
         total=len(outcomes),
-        verdicted=verdicted,
+        verdicted=agg.verdicted,
         deferred=deferred_count,
-        agreements=agreements,
-        disagreements=disagreements,
-        agreement_rate=agreement_rate,
-        disagreement_rate=disagreement_rate,
+        agreements=agg.agreements,
+        disagreements=agg.disagreements,
+        agreement_rate=agg.agreement_rate,
+        disagreement_rate=agg.disagreement_rate,
         quota_saved=quota_saved,
-        kill_threshold=kill_threshold,
-        kill=kill,
-        kill_reason=kill_reason,
+        kill_threshold=agg.kill_threshold,
+        kill=agg.kill,
+        kill_reason=agg.kill_reason,
         avg_elapsed_s=avg_elapsed,
         outcomes=outcomes,
     )

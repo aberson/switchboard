@@ -46,6 +46,13 @@ _BASE_URL_RE = re.compile(r"^https?://[A-Za-z0-9._:\-]+(?:/[A-Za-z0-9._\-/]*)?$"
 # body or being mistaken for a path.
 _SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9._\-]+$")
 
+# The reasoning-effort tiers a Claude-side sub-agent dispatch (Workflow/Agent reasoning_effort)
+# can be set to. This is the ONLY value set the ``effort`` map accepts. See the honest-scope
+# note on ``SwitchboardConfig.effort`` below: switchboard stores + validates + round-trips this
+# dimension but does NOT act on it — the local_judge urllib client has no effort knob; effort
+# is consumed Claude-side when dispatching the slice's sub-agents, not by the local endpoint.
+ALLOWED_EFFORT_TIERS: frozenset[str] = frozenset({"low", "medium", "high", "xhigh", "max"})
+
 
 class ConfigError(ValueError):
     """Raised when a Switchboard config value fails validation."""
@@ -74,10 +81,20 @@ class SwitchboardConfig:
     NOTE: per D2 the production deployment uses ONE model (general-35b) for all slices.
     The per-site model override exists for config expressiveness only; no model-swap
     routing is built into the client.
+
+    ``effort`` maps a ``task_class`` to a Claude-side reasoning-effort tier (one of
+    ``ALLOWED_EFFORT_TIERS``). HONEST SCOPE (Phase B / Step B3): this dimension is consumed by
+    **Claude-side sub-agent dispatch** (a Workflow/Agent ``reasoning_effort`` override when the
+    slice's judges run on Claude), NOT by ``local_judge`` — the local urllib client talks to one
+    local model and has no effort knob. switchboard *stores + validates + round-trips* ``effort``
+    so a config can carry the recommendation, but NOTHING in this package acts on it; there is no
+    live consumer wired this phase, and that is deliberate (see the bake-off effort-vs-model arm +
+    docs/effort-vs-model-recommendation.md). Do NOT add a code path that pretends to honor it.
     """
 
     less_token_mode: bool = True
     enabled_call_sites: dict[str, bool | str] = field(default_factory=dict)
+    effort: dict[str, str] = field(default_factory=dict)
     base_url: str = DEFAULT_BASE_URL
     model: str = DEFAULT_MODEL
     cold_timeout_s: float = DEFAULT_COLD_TIMEOUT_S
@@ -106,6 +123,13 @@ class SwitchboardConfig:
             else:
                 raise ConfigError(
                     f"enabled_call_sites[{tc!r}] must be bool or model name str, got {val!r}"
+                )
+
+        for tc, tier in self.effort.items():
+            _validate_name(tc, "task_class")
+            if not isinstance(tier, str) or tier not in ALLOWED_EFFORT_TIERS:
+                raise ConfigError(
+                    f"effort[{tc!r}] must be one of {sorted(ALLOWED_EFFORT_TIERS)}, got {tier!r}"
                 )
 
         for label, tval in (
@@ -173,6 +197,16 @@ class SwitchboardConfig:
         if task_class is None:
             return True
         return self.is_call_site_enabled(task_class)
+
+    def effort_for(self, task_class: str) -> str | None:
+        """The configured Claude-side effort tier for a call site, or None if unset.
+
+        Read-only lookup: switchboard does not act on the returned tier (no live consumer this
+        phase — see the ``effort`` field docstring). A caller that *does* dispatch the slice's
+        judges on Claude can read this to set the sub-agent ``reasoning_effort``; ``local_judge``
+        ignores it entirely.
+        """
+        return self.effort.get(task_class)
 
 
 # The single source of truth for "which top-level keys a config file may contain": the

@@ -1,0 +1,80 @@
+{
+  "note": "HAND-AUTHORED FIXTURE, NOT YET LIVE-MEASURED. The recorded verdicts/cost/latency below are hand-crafted to exercise and calibrate the bake-off kill rule (the `local` candidate passes at 1/7 = 14.3% disagreement; the `weak` candidate kills at 3/7 = 42.9%), NOT captured from real general-35b/Opus runs. A certify_slice PASS against this fixture certifies the harness, not the live model. Real numbers require the B2b live-capture step (issue #237, still open) — running the bake-off against the real endpoint — which overwrites this `recorded` block before the slice is genuinely certified. See docs/switchboard-offload-phase-b-plan.md (Step 3 / B2b).",
+  "slice": "review-deep-style",
+  "reference_runner": "opus",
+  "kill_threshold": 0.20,
+  "cases": [
+    {
+      "label": "add-type-hints",
+      "expected": "pass",
+      "prompt": "Code-style diff under review:\n- def add(a, b):\n+ def add(a: int, b: int) -> int:\n      return a + b\n\nAdds type hints to a previously untyped function. Respond with ONLY JSON: {\"verdict\":\"pass\"|\"flag\",\"reason\":\"<short>\"}"
+    },
+    {
+      "label": "manual-loop-bad-name",
+      "expected": "flag",
+      "prompt": "Code-style diff under review:\n- total = sum(values)\n+ l = 0\n+ for x in values: l = l + x\n\nReplaces a clear built-in sum() with a hand-rolled loop using single-letter 'l' (easily confused with the digit 1). Respond with ONLY JSON: {\"verdict\":\"pass\"|\"flag\",\"reason\":\"<short>\"}"
+    },
+    {
+      "label": "whitespace-cleanup",
+      "expected": "pass",
+      "prompt": "Code-style diff under review:\n- # TODO fix later\n- x=compute( )\n+ x = compute()\n\nWhitespace normalization plus removal of a stale TODO; purely cosmetic cleanup. Respond with ONLY JSON: {\"verdict\":\"pass\"|\"flag\",\"reason\":\"<short>\"}"
+    },
+    {
+      "label": "comprehension-to-loop",
+      "expected": "flag",
+      "prompt": "Code-style diff under review:\n- result = [transform(i) for i in items]\n+ result = []\n+ for i in items:\n+     result.append(transform(i))\n\nExpands a clear list comprehension into a verbose append loop with no added clarity. Respond with ONLY JSON: {\"verdict\":\"pass\"|\"flag\",\"reason\":\"<short>\"}"
+    },
+    {
+      "label": "extract-helper",
+      "expected": "pass",
+      "prompt": "Code-style diff under review:\n- if user.is_active and user.email_verified and not user.is_banned:\n+ if user.can_log_in():\n\nExtracts a compound boolean condition into a named predicate method. Respond with ONLY JSON: {\"verdict\":\"pass\"|\"flag\",\"reason\":\"<short>\"}"
+    },
+    {
+      "label": "bare-except",
+      "expected": "flag",
+      "prompt": "Code-style diff under review:\n- value = parse(raw)\n+ try:\n+     value = parse(raw)\n+ except:\n+     value = None\n\nWraps a parse in a BARE except that swallows every exception including KeyboardInterrupt, hiding real failures. Respond with ONLY JSON: {\"verdict\":\"pass\"|\"flag\",\"reason\":\"<short>\"}"
+    },
+    {
+      "label": "rename-clarity",
+      "expected": "pass",
+      "prompt": "Code-style diff under review:\n- d = {}\n- for k, v in pairs: d[k] = v\n+ lookup = {}\n+ for key, value in pairs: lookup[key] = value\n\nRenames single-letter locals to descriptive names. Respond with ONLY JSON: {\"verdict\":\"pass\"|\"flag\",\"reason\":\"<short>\"}"
+    },
+    {
+      "label": "magic-number",
+      "expected": "flag",
+      "prompt": "Code-style diff under review:\n- timeout = DEFAULT_TIMEOUT_S\n+ timeout = 540\n\nReplaces a named constant with an unexplained magic number. Respond with ONLY JSON: {\"verdict\":\"pass\"|\"flag\",\"reason\":\"<short>\"}"
+    }
+  ],
+  "recorded": {
+    "opus": [
+      {"label": "add-type-hints", "verdict": "pass", "cost_usd": 0.0123, "latency_s": 4.1},
+      {"label": "manual-loop-bad-name", "verdict": "flag", "cost_usd": 0.0119, "latency_s": 3.8},
+      {"label": "whitespace-cleanup", "verdict": "pass", "cost_usd": 0.0108, "latency_s": 3.2},
+      {"label": "comprehension-to-loop", "verdict": "flag", "cost_usd": 0.0131, "latency_s": 4.6},
+      {"label": "extract-helper", "verdict": "pass", "cost_usd": 0.0127, "latency_s": 4.3},
+      {"label": "bare-except", "verdict": "flag", "cost_usd": 0.0115, "latency_s": 3.9},
+      {"label": "rename-clarity", "verdict": "pass", "cost_usd": 0.0112, "latency_s": 3.5},
+      {"label": "magic-number", "verdict": "flag", "cost_usd": 0.0121, "latency_s": 4.0}
+    ],
+    "local": [
+      {"label": "add-type-hints", "verdict": "pass", "cost_usd": 0.0, "latency_s": 16.4},
+      {"label": "manual-loop-bad-name", "verdict": "flag", "cost_usd": 0.0, "latency_s": 18.1},
+      {"label": "whitespace-cleanup", "verdict": "pass", "cost_usd": 0.0, "latency_s": 14.9},
+      {"label": "comprehension-to-loop", "verdict": "flag", "cost_usd": 0.0, "latency_s": 19.7},
+      {"label": "extract-helper", "verdict": "pass", "cost_usd": 0.0, "latency_s": 15.6},
+      {"label": "bare-except", "verdict": null, "cost_usd": 0.0, "latency_s": 12.2},
+      {"label": "rename-clarity", "verdict": "pass", "cost_usd": 0.0, "latency_s": 13.8},
+      {"label": "magic-number", "verdict": "pass", "cost_usd": 0.0, "latency_s": 17.3}
+    ],
+    "weak": [
+      {"label": "add-type-hints", "verdict": "pass", "cost_usd": 0.0, "latency_s": 9.1},
+      {"label": "manual-loop-bad-name", "verdict": "pass", "cost_usd": 0.0, "latency_s": 8.4},
+      {"label": "whitespace-cleanup", "verdict": "pass", "cost_usd": 0.0, "latency_s": 7.7},
+      {"label": "comprehension-to-loop", "verdict": "pass", "cost_usd": 0.0, "latency_s": 9.9},
+      {"label": "extract-helper", "verdict": "pass", "cost_usd": 0.0, "latency_s": 8.0},
+      {"label": "bare-except", "verdict": null, "cost_usd": 0.0, "latency_s": 6.5},
+      {"label": "rename-clarity", "verdict": "pass", "cost_usd": 0.0, "latency_s": 7.2},
+      {"label": "magic-number", "verdict": "pass", "cost_usd": 0.0, "latency_s": 8.8}
+    ]
+  }
+}

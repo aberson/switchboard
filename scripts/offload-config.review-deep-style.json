@@ -1,0 +1,8 @@
+{
+  "less_token_mode": true,
+  "enabled_call_sites": {
+    "review-deep-style": true,
+    "build-step-style": false
+  },
+  "max_tokens": 2000
+}

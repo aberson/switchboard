@@ -2,8 +2,11 @@
 
 Two modes, dispatched on argv:
 
-* ``python -m switchboard judge --site <task_class> ...`` — the CLI judge entrypoint a
-  SKILL.md invokes (see ``switchboard.cli``). Prints a verdict-or-defer JSON; always exit 0.
+* A subcommand (e.g. ``judge`` / ``bakeoff``) routes to the CLI (see ``switchboard.cli``):
+    * ``python -m switchboard judge --site <task_class> ...`` — print a verdict-or-defer JSON;
+      always exit 0.
+    * ``python -m switchboard bakeoff --suite <path> [--output-dir <dir>]`` — run the recorded
+      slice bake-off, write ``report.md`` + ``scores.jsonl``, print one grep-able summary line.
 * ``python -m switchboard`` (no subcommand) — an OPTIONAL live smoke against a running local
   endpoint. NOT part of the test suite — the unit tests stub the HTTP boundary and never
   touch the network. Run it manually when a llama-swap host is up on localhost:8080:
