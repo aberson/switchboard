@@ -15,10 +15,11 @@ This module is the consumer of that signal:
     byte-for-value; on no-kill it is a pure no-op. A malformed/missing/unwritable config degrades
     gracefully (never crashes the caller), matching switchboard's defer-safe contract.
 
-  * ``monitor_deployed_slice`` — the production entry point the consumer is wired into. No
-    standing "monitor a deployed slice" daemon exists yet, so — per the least-invasive correct
-    choice — THIS function is that live-run boundary: it composes the existing live ``run_shadow``
-    disagreement evaluation with the new consumer.
+  * ``monitor_deployed_slice`` — the intended production entry point for the consumer. NOTE:
+    this is UNWIRED GROUNDWORK — nothing invokes it yet (no ``monitor`` CLI subcommand, no
+    scheduler/daemon), so the auto-disable is NOT live until a standing invocation is wired in
+    B2b (issue #237). It composes the existing live ``run_shadow`` disagreement evaluation with
+    the new consumer, ready for that caller.
 
 Stdlib ``json`` only — switchboard is zero-dependency (``pyproject.toml`` ``dependencies = []``).
 The config rewrite is a SURGICAL edit of the raw parsed JSON (only the tripped slice's value
