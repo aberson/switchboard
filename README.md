@@ -64,11 +64,15 @@ file (or set an env var) + verify" — no code edit.
 
 ### Turn it ON
 
-> **Single-slice certified enablement:** to enable ONLY the bake-off-certified `review-deep-style`
+> **Single-slice enablement (pending live certification):** to enable ONLY the `review-deep-style`
 > slice (and explicitly keep `build-step-style` off), skip step 1 and use the committed
 > [`scripts/offload-config.review-deep-style.json`](scripts/offload-config.review-deep-style.json)
 > as the source in steps 2–3 — it is the review-deep-style-only enable config (`max_tokens: 2000`,
-> lifted from the 800 default because `general-35b` is a reasoning model).
+> lifted from the 800 default because `general-35b` is a reasoning model). Note: the bake-off behind
+> this slice currently scores **hand-authored fixture** verdicts (see
+> [`suites/review-deep-style.json`](suites/review-deep-style.json)); a B2b live capture (#237)
+> replaces them with real `general-35b` output before the slice is genuinely certified against the
+> live model.
 
 ```powershell
 # 1. Generate a config from your own skills (writes .\offload-scan-out\offload-config.json).

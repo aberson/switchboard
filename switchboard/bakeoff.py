@@ -539,8 +539,7 @@ def render(report: BakeoffReport) -> str:
     lines.append("## Per-runner aggregate")
     lines.append("")
     lines.append(
-        "| runner | agreement | disagreement | mean_cost | mean_latency | "
-        f"PASS/FAIL@{kt:.0%} |"
+        f"| runner | agreement | disagreement | mean_cost | mean_latency | PASS/FAIL@{kt:.0%} |"
     )
     lines.append("| --- | --- | --- | --- | --- | --- |")
     for r in report.runners:

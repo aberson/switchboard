@@ -109,9 +109,7 @@ def test_kill_threshold_defaults_when_omitted(tmp_path: Path) -> None:
         pytest.param(lambda d: d.pop("reference_runner"), id="missing-reference"),
         pytest.param(lambda d: d.update(kill_threshold=1.5), id="threshold-out-of-range"),
         pytest.param(lambda d: d.update(cases=[]), id="empty-cases"),
-        pytest.param(
-            lambda d: d["cases"][0].update(expected="maybe"), id="bad-expected-verdict"
-        ),
+        pytest.param(lambda d: d["cases"][0].update(expected="maybe"), id="bad-expected-verdict"),
         pytest.param(lambda d: d["cases"][0].update(label=""), id="empty-label"),
         pytest.param(lambda d: d["cases"][0].pop("prompt"), id="missing-prompt"),
     ],
@@ -199,9 +197,7 @@ def test_aggregation_counts_rates_and_means() -> None:
         ("c", "flag", 0.0, 8.0),  # disagree (expected pass)
         ("d", "flag", 0.0, 10.0),  # agree
     )
-    report, rows = score_runner(
-        "local", cases, calls, reference_runner="opus", kill_threshold=0.50
-    )
+    report, rows = score_runner("local", cases, calls, reference_runner="opus", kill_threshold=0.50)
     assert report.total == 4
     assert report.verdicted == 3
     assert report.deferred == 1
@@ -243,9 +239,7 @@ def test_pass_fail_boundary_is_strict_greater_than() -> None:
         ("d", "flag", 0.0, 1.0),
         ("e", "flag", 0.0, 1.0),
     )
-    report_above, _ = score_runner(
-        "r", cases, above, reference_runner="opus", kill_threshold=0.20
-    )
+    report_above, _ = score_runner("r", cases, above, reference_runner="opus", kill_threshold=0.20)
     assert report_above.disagreement_rate == pytest.approx(0.40)
     assert report_above.kill is True
     assert "REVERT" in report_above.kill_reason
@@ -305,10 +299,7 @@ def test_bakeoff_kill_matches_shared_aggregate(
     # Build a runner whose recorded calls realize exactly these counts (rest are defers).
     cases = _cases(*((f"c{i}", "pass") for i in range(verdicted)))
     calls = _calls(
-        *(
-            (f"c{i}", ("pass" if i < agreements else "flag"), 0.0, 1.0)
-            for i in range(verdicted)
-        )
+        *((f"c{i}", ("pass" if i < agreements else "flag"), 0.0, 1.0) for i in range(verdicted))
     )
     report, _ = score_runner(
         "r", cases, calls, reference_runner="opus", kill_threshold=kill_threshold
@@ -422,8 +413,6 @@ def test_canonical_suite_renders_stably() -> None:
     assert all(r["kind"] == "row" for r in rows)
     assert len(rows) == 3 * 8
     # The deferred local 'bare-except' row carries a null verdict + deferred flag.
-    local_defer = next(
-        r for r in rows if r["runner"] == "local" and r["label"] == "bare-except"
-    )
+    local_defer = next(r for r in rows if r["runner"] == "local" and r["label"] == "bare-except")
     assert local_defer["verdict"] is None
     assert local_defer["deferred"] is True
