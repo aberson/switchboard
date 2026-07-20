@@ -32,10 +32,11 @@ from dataclasses import dataclass
 from switchboard.bakeoff import BakeoffReport, RunnerReport
 from switchboard.config import DEFAULT_MAX_TOKENS
 
-# general-35b is a reasoning model: the 800-token default already truncates some slices, so a
-# single-slice enable config pins a higher ceiling. 2000 is the operator-verified value from the
-# Phase 1.5 live smoke (general-35b reasoning_content + answer fits comfortably). Kept >= the
-# config floor so from_mapping never rejects a certified recommendation.
+# A single-slice enable config pins a higher ceiling than the 800 default. 2000 is the
+# operator-verified value from the Phase 1.5 live smoke against general-35b (a reasoning model
+# whose reasoning_content + answer fit comfortably under it). coder-30b (the current default) is
+# non-reasoning and needs far less, but 2000 is retained as safe headroom pending a coder-30b
+# live re-capture (#237). Kept >= the config floor so from_mapping never rejects it.
 RECOMMENDED_MAX_TOKENS = 2000
 assert RECOMMENDED_MAX_TOKENS >= DEFAULT_MAX_TOKENS  # noqa: S101
 

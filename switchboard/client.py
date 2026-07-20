@@ -8,7 +8,7 @@ Contract pinned in docs/investigations/switchboard-spike.md (issue #203). Key po
   * parse leniently (strip ```json fences, scan first balanced ``{}``) but validate
     strictly (``verdict in {pass, flag}`` AND ``reason`` a non-empty string);
   * defer on ANY of the 7 documented failure conditions;
-  * ``max_tokens`` defaults to 800 (general-35b is a reasoning model);
+  * ``max_tokens`` defaults to 800 (generous headroom; see config.py MIN/DEFAULT rationale);
   * when ``less_token_mode`` is OFF (or the call site is disabled), short-circuit to the
     defer sentinel WITHOUT touching the network.
 """

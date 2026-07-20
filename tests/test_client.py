@@ -257,7 +257,7 @@ def test_request_body_matches_contract(
 
     assert captured["url"] == f"{cfg.base_url}/chat/completions"
     body = json.loads(captured["data"])  # type: ignore[arg-type]
-    assert body["model"] == "general-35b"
+    assert body["model"] == "coder-30b"
     assert body["temperature"] == 0
     assert body["max_tokens"] == 800
     assert body["max_tokens"] >= 600

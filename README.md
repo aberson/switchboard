@@ -1,7 +1,7 @@
 # switchboard
 
 Local-LLM offload core for Switchboard Phase 1. Routes cheap judgment calls (style lens,
-overnight grader, ...) to a local OpenAI-compatible model (`general-35b` via llama-swap on
+overnight grader, ...) to a local OpenAI-compatible model (`coder-30b` via llama-swap on
 `localhost:8080`) and **defers to Claude on any failure**.
 
 Built to the D1 contract pinned in
@@ -40,14 +40,17 @@ Built to the D1 contract pinned in
 
 ## Key contract points
 
-- `max_tokens` defaults to **800** (floor 600): `general-35b` is a reasoning model that
-  spends ~400–620 tokens on `reasoning_content` before the answer lands in `content`. A
-  small budget truncates with `content: ""` and `finish_reason: "length"`.
-- Read the verdict from `choices[0].message.content`; **ignore `reasoning_content`**.
+- `max_tokens` defaults to **800** (floor 600) as generous headroom. The default model
+  `coder-30b` (Qwen3-Coder-30B-A3B-Instruct) is **non-reasoning**, so a verdict needs few
+  tokens; the 800/600 values are safe headroom retained from the general-35b era (a reasoning
+  model that spent ~400–620 tokens on `reasoning_content` before the answer, truncating with
+  `content: ""` / `finish_reason: "length"` under a small budget).
+- Read the verdict from `choices[0].message.content`; **ignore `reasoning_content`** (only a
+  reasoning model populates it).
 - Timeouts: cold **540 s** (first call cold-loads), warm **60 s**.
 - When `less_token_mode` is OFF (or the call site is not enabled), `local_judge`
   short-circuits to the defer sentinel **without** calling the endpoint.
-- **One model** (`general-35b`) for all slices — no model-swap routing (D2).
+- **One model** (`coder-30b`) for all slices — no model-swap routing (D2).
 
 ## Turning offload on/off
 
@@ -68,10 +71,11 @@ file (or set an env var) + verify" — no code edit.
 > slice (and explicitly keep `build-step-style` off), skip step 1 and use the committed
 > [`scripts/offload-config.review-deep-style.json`](scripts/offload-config.review-deep-style.json)
 > as the source in steps 2–3 — it is the review-deep-style-only enable config (`max_tokens: 2000`,
-> lifted from the 800 default because `general-35b` is a reasoning model). Note: the bake-off behind
+> the operator-verified general-35b-era ceiling, retained as safe headroom above the 800 default).
+> Note: the bake-off behind
 > this slice currently scores **hand-authored fixture** verdicts (see
 > [`suites/review-deep-style.json`](suites/review-deep-style.json)); a B2b live capture (#237)
-> replaces them with real `general-35b` output before the slice is genuinely certified against the
+> replaces them with real `coder-30b` output before the slice is genuinely certified against the
 > live model.
 
 ```powershell
@@ -97,7 +101,7 @@ uv run python -m switchboard config
 toggle), `enabled_sites`, and the endpoint knobs. If `offload_active` is `true`, offload is
 live for those sites.
 
-The **local endpoint must be up** (llama-swap serving `general-35b` on `localhost:8080`) for a
+The **local endpoint must be up** (llama-swap serving `coder-30b` on `localhost:8080`) for a
 judge to return a *verdict*; if it is down, judges *defer* (`reason_class: unreachable`) — still
 safe, just no quota saved.
 

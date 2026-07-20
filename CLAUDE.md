@@ -3,7 +3,7 @@
 ## Project overview
 
 Local-LLM offload core ("less-token mode"): routes cheap **judge/grader** calls (style lens,
-overnight grader, suggestion judge, …) to a local OpenAI-compatible model (`general-35b` via
+overnight grader, suggestion judge, …) to a local OpenAI-compatible model (`coder-30b` via
 llama-swap on `localhost:8080`, in WSL2) and **defers to Claude on any failure**. Authorship,
 planning, and correctness gates always stay on Claude. The package is **stdlib-only, zero-dependency**
 and **inert until a config is deployed** — every call site is disabled by default and `local_judge`
@@ -37,13 +37,15 @@ on the next `git merge master`.
 
 ## Gotchas
 
-- `general-35b` is a **reasoning** model: `max_tokens` floor 600, default 800 — set **2000+** in the
-  deployed config or the verdict truncates (`finish_reason: length`, `content: ""`). Read the verdict
-  from `choices[0].message.content`; ignore `reasoning_content`.
+- `coder-30b` (Qwen3-Coder-30B-A3B-Instruct) is a **non-reasoning** model, so a verdict needs few
+  tokens; `max_tokens` keeps a 600 floor / 800 default as safe headroom (raise a slice only if it
+  truncates: `finish_reason: length`, `content: ""`). Read the verdict from
+  `choices[0].message.content`; ignore `reasoning_content` (only a reasoning model like the former
+  `general-35b` default populates it).
 - **Fail-safe by design**: a missing/malformed config or an unreadable prompt degrades to a Claude
   defer (exit 0), never a crash. Deleting `~/.switchboard/config.json` turns offload back off.
 - `build-step-style` stays disabled — the local model is never a merge/correctness gate (Decision 3).
-- Endpoint (`general-35b` via `llama-swap.service` on `:8080`) lives in WSL2, installed by
+- Endpoint (`coder-30b` via `llama-swap.service` on `:8080`) lives in WSL2, installed by
   void_furnace; needs a keep-alive for the localhost relay.
 
 ## Ports

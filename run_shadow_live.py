@@ -1,4 +1,4 @@
-"""Operator-run live shadow measurement against general-35b on localhost:8080.
+"""Operator-run live shadow measurement against the local model (coder-30b) on localhost:8080.
 
 NOT part of the test suite. Drives the real harness over a handful of real style-judgment
 prompts with hand-labelled expected (Claude) verdicts, then prints agreement + quota saved.

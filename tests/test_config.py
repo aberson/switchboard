@@ -18,7 +18,7 @@ from switchboard.config import (
 def test_defaults_match_pinned_contract() -> None:
     cfg = SwitchboardConfig()
     assert cfg.base_url == DEFAULT_BASE_URL == "http://localhost:8080/v1"
-    assert cfg.model == DEFAULT_MODEL == "general-35b"
+    assert cfg.model == DEFAULT_MODEL == "coder-30b"
     assert cfg.cold_timeout_s == 540.0
     assert cfg.warm_timeout_s == 60.0
     assert cfg.max_tokens == DEFAULT_MAX_TOKENS == 800
@@ -27,9 +27,11 @@ def test_defaults_match_pinned_contract() -> None:
 
 
 def test_base_url_and_model_configurable() -> None:
-    cfg = SwitchboardConfig(base_url="http://localhost:9090/v1", model="coder-30b")
+    # Override with a NON-default model so this still proves `model` is configurable
+    # (coder-30b is now the default — see test_defaults_match_pinned_contract).
+    cfg = SwitchboardConfig(base_url="http://localhost:9090/v1", model="general-35b")
     assert cfg.base_url == "http://localhost:9090/v1"
-    assert cfg.model == "coder-30b"
+    assert cfg.model == "general-35b"
 
 
 # --- Validation: max_tokens floor (the #1 footgun) ---------------------------------------
@@ -135,8 +137,8 @@ def test_call_site_enable_map() -> None:
 def test_model_for_override() -> None:
     cfg = SwitchboardConfig(enabled_call_sites={"audit": "coder-30b", "style": True})
     assert cfg.model_for("audit") == "coder-30b"
-    assert cfg.model_for("style") == "general-35b"  # falls back to default
-    assert cfg.model_for("unknown") == "general-35b"
+    assert cfg.model_for("style") == "coder-30b"  # falls back to default
+    assert cfg.model_for("unknown") == "coder-30b"
 
 
 def test_config_is_frozen() -> None:

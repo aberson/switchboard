@@ -25,16 +25,19 @@ from typing import Any, cast
 
 # --- Spike-pinned defaults (docs/investigations/switchboard-spike.md, D1 contract) -------
 DEFAULT_BASE_URL = "http://localhost:8080/v1"
-DEFAULT_MODEL = "general-35b"
+DEFAULT_MODEL = "coder-30b"
 
-# general-35b cold-loads on first hit (130-264 s observed). Warm calls are 16-22 s but
-# reasoning-token generation can push past 20 s, so the warm ceiling stays well above that.
+# coder-30b cold-loads on first hit (~200 s observed; general-35b, if ever served, 130-264 s).
+# Warm calls are ~16-22 s, so the warm ceiling stays well above that with headroom.
 DEFAULT_COLD_TIMEOUT_S = 540.0
 DEFAULT_WARM_TIMEOUT_S = 60.0
 
-# general-35b (Qwen3.6-35B-A3B) is a reasoning model: it spends ~400-620 tokens on
-# reasoning_content before the answer lands in content. A small budget truncates with
-# content="" and finish_reason="length". 800 is the pinned floor; we hard-reject < 600.
+# max_tokens is sized for generous headroom. coder-30b (Qwen3-Coder-30B-A3B-Instruct) is a
+# NON-reasoning model, so a verdict needs few tokens; the 800 default / 600 floor are safe
+# headroom retained from the general-35b era (a reasoning model that spent ~400-620 tokens on
+# reasoning_content before the answer, truncating with content="" and finish_reason="length"
+# under a small budget). Kept generous because a reasoning model may still be transiently
+# served and over-provisioning a cheap local call is harmless; we hard-reject < 600.
 DEFAULT_MAX_TOKENS = 800
 MIN_MAX_TOKENS = 600
 
@@ -78,7 +81,7 @@ class SwitchboardConfig:
       * ``False`` — offload disabled for this call site (defer to Claude);
       * a model name ``str`` — offload allowed, pin this model for the call site.
 
-    NOTE: per D2 the production deployment uses ONE model (general-35b) for all slices.
+    NOTE: per D2 the production deployment uses ONE model (coder-30b) for all slices.
     The per-site model override exists for config expressiveness only; no model-swap
     routing is built into the client.
 
@@ -146,7 +149,7 @@ class SwitchboardConfig:
         ):
             raise ConfigError(
                 f"max_tokens must be an int >= {MIN_MAX_TOKENS} "
-                f"(general-35b is a reasoning model), got {self.max_tokens!r}"
+                f"(verdict + reasoning-budget headroom floor), got {self.max_tokens!r}"
             )
 
     @classmethod
