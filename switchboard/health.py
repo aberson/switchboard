@@ -16,7 +16,7 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
-from typing import TypedDict
+from typing import Literal, TypedDict
 
 from switchboard.client import local_judge
 from switchboard.config import SwitchboardConfig
@@ -32,6 +32,21 @@ class Health(TypedDict):
     models: list[str]
     model_served: bool
     error: str | None
+
+
+EndpointStatus = Literal["offline", "online-model-missing", "online-model-served"]
+ENDPOINT_STATUSES: tuple[EndpointStatus, ...] = (
+    "offline",
+    "online-model-missing",
+    "online-model-served",
+)
+
+
+def endpoint_status(result: Health) -> EndpointStatus:
+    """Classify probe facts without equating reachability with a served configured model."""
+    if not result["reachable"]:
+        return "offline"
+    return "online-model-served" if result["model_served"] else "online-model-missing"
 
 
 def health(

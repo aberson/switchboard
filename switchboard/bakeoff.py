@@ -45,6 +45,7 @@ from switchboard.harness import (
 )
 
 __all__ = [
+    "BAKEOFF_ARTIFACT_SCHEMA_VERSION",
     "BakeoffError",
     "BakeoffReport",
     "CaseRow",
@@ -54,10 +55,14 @@ __all__ = [
     "load_suite",
     "render",
     "render_jsonl",
+    "render_observatory_artifact",
     "run_bakeoff",
     "run_live_local_runner",
     "score_runner",
 ]
+
+#: Versioned bounded bake-off result artifact for producer-owned observatory reads.
+BAKEOFF_ARTIFACT_SCHEMA_VERSION = 1
 
 # A reference/expected verdict and a recorded runner verdict share the same {pass, flag}
 # domain. A recorded verdict may additionally be None (the runner DEFERRED).
@@ -608,6 +613,32 @@ def _row_to_jsonable(row: CaseRow) -> dict[str, object]:
         "cost_usd": row.cost_usd,
         "latency_s": row.latency_s,
     }
+
+
+def render_observatory_artifact(report: BakeoffReport) -> str:
+    """Render the bounded, versioned bake-off artifact consumed by observatory surfaces.
+
+    The artifact includes recorded evidence only: runner aggregates and per-case labels,
+    verdicts, costs, and latencies. It intentionally excludes suite prompts and any live
+    endpoint claim. The input suite remains the operator-selected evidence source; a
+    ``PASS`` is recorded-suite agreement, not a routing gate or a live certification claim.
+    """
+    payload = {
+        "schema_version": BAKEOFF_ARTIFACT_SCHEMA_VERSION,
+        "artifact": "switchboard-bakeoff",
+        "slice": report.slice_name,
+        "reference_runner": report.reference_runner,
+        "kill_threshold": report.kill_threshold,
+        "n_cases": report.n_cases,
+        "runners": [_runner_to_jsonable(runner) for runner in report.runners],
+        "rows": [_row_to_jsonable(row) for row in report.rows],
+        "limitations": [
+            "Recorded-suite agreement is not live endpoint evidence or certification.",
+            "A PASS does not make the local model a correctness or merge gate.",
+            "No outcome or caller-wiring evidence is inferred by this artifact.",
+        ],
+    }
+    return json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True) + "\n"
 
 
 def render_jsonl(report: BakeoffReport) -> str:

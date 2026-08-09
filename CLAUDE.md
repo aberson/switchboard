@@ -23,17 +23,27 @@ uv run pytest -q
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy --strict switchboard
-# turn offload ON (operator switch: wakes WSL llama-swap, deploys config, holds endpoint warm; Ctrl-C tears down)
+# primary read surface: config, per-site effective model, and bounded endpoint probe
+uv run python -m switchboard inspect --json
+# config-only validation (does not launch or probe the endpoint)
+uv run python -m switchboard config
+# deterministic recorded evidence; writes report.md, scores.jsonl, and bakeoff.json
+uv run python -m switchboard bakeoff --suite suites\review-deep-style.json --output-dir _tmp
+# make the local endpoint available; this never deploys or enables offload config
 powershell -ExecutionPolicy Bypass -NoProfile -File scripts\start-offload.ps1
+# non-destructive launcher prerequisite smoke (no WSL/service/config changes)
+powershell -ExecutionPolicy Bypass -NoProfile -File scripts\start-offload.ps1 -Smoke
 # install a Desktop "Switchboard Offload" icon (one-time setup)
 powershell -ExecutionPolicy Bypass -NoProfile -File scripts\install-offload-icon.ps1
+# non-destructive installer prerequisite smoke (does not create a Desktop shortcut)
+powershell -ExecutionPolicy Bypass -NoProfile -File scripts\install-offload-icon.ps1 -Smoke
 # live smoke against a running endpoint on localhost:8080
 uv run python -m switchboard
 ```
 
 Offload-state inspection is `uv run python -m switchboard config` (JSON report + source; non-zero
-exit on a broken config). It ships on `master` via the Phase 1.5 config-loader; this branch gains it
-on the next `git merge master`.
+exit on a broken config). The config is the only offload policy switch; the launcher only manages
+endpoint availability.
 
 ## Gotchas
 

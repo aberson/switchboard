@@ -1,0 +1,91 @@
+{
+  "artifact": "switchboard observatory contract",
+  "config": {
+    "defaults": {
+      "base_url": "http://localhost:8080/v1",
+      "cold_timeout_s": 540.0,
+      "effort": {},
+      "enabled_call_sites": {},
+      "less_token_mode": true,
+      "max_tokens": 800,
+      "model": "coder-30b",
+      "warm_timeout_s": 60.0
+    },
+    "directory_name": ".switchboard",
+    "environment_variable": "SWITCHBOARD_CONFIG",
+    "fields": [
+      "less_token_mode",
+      "enabled_call_sites",
+      "effort",
+      "base_url",
+      "model",
+      "cold_timeout_s",
+      "warm_timeout_s",
+      "max_tokens"
+    ],
+    "filename": "config.json",
+    "source_precedence": [
+      {
+        "label": "arg",
+        "meaning": "explicit --path argument",
+        "requires_existing_file": true
+      },
+      {
+        "label": "env",
+        "meaning": "SWITCHBOARD_CONFIG environment variable",
+        "requires_existing_file": true
+      },
+      {
+        "label": "home",
+        "meaning": "existing ~/.switchboard/config.json file",
+        "requires_existing_file": true
+      },
+      {
+        "label": "defaults",
+        "meaning": "no selected config file; inert site map",
+        "requires_existing_file": false
+      }
+    ],
+    "validation": {
+      "allowed_effort_tiers": [
+        "high",
+        "low",
+        "max",
+        "medium",
+        "xhigh"
+      ],
+      "base_url": "safe http(s) URL only; traversal and shell characters are rejected",
+      "max_tokens_minimum": 600,
+      "name": "non-empty letters, digits, dot, underscore, and hyphen only",
+      "unknown_top_level_fields": "rejected"
+    }
+  },
+  "inspect": {
+    "endpoint_statuses": [
+      "offline",
+      "online-model-missing",
+      "online-model-served"
+    ],
+    "schema_version": 1,
+    "site_fields": [
+      "site",
+      "configured_value",
+      "configured_model",
+      "default_model",
+      "effective_model",
+      "site_enabled",
+      "offload_allowed",
+      "effort_hint"
+    ],
+    "states": [
+      "absent",
+      "invalid",
+      "inactive",
+      "active-offline",
+      "active-online-model-missing",
+      "active-online"
+    ]
+  },
+  "owner": "switchboard",
+  "schema_version": 1
+}

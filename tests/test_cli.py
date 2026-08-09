@@ -18,8 +18,9 @@ from pathlib import Path
 
 import pytest
 
-from switchboard.cli import main, run_judge
+from switchboard.cli import INSPECT_SCHEMA_VERSION, INSPECT_STATES, main, run_judge
 from switchboard.config import SwitchboardConfig
+from switchboard.health import ENDPOINT_STATUSES
 from switchboard.metrics import METRICS, Metrics
 from tests.conftest import (
     PASS_CONTENT,
@@ -59,9 +60,7 @@ def test_run_judge_defers_when_offload_off() -> None:
 
 def test_run_judge_defers_when_site_disabled() -> None:
     # less_token_mode ON, but this site is explicitly disabled (the build-step-style case).
-    cfg = SwitchboardConfig(
-        less_token_mode=True, enabled_call_sites={"build-step-style": False}
-    )
+    cfg = SwitchboardConfig(less_token_mode=True, enabled_call_sites={"build-step-style": False})
     result = run_judge(slice_name="build-step-style", prompt="judge this", config=cfg)
     assert result["defer"] is True  # type: ignore[typeddict-item]
     assert result["reason_class"] == "disabled"  # type: ignore[typeddict-item]
@@ -291,3 +290,154 @@ def test_config_subcommand_path_broken_file_exits_nonzero(
     rc = main(["config", "--path", str(tmp_path / "nope.json")])
     assert rc != 0
     assert capsys.readouterr().err.strip() != ""
+
+
+# --- Step 71: inspect distinguishes config and bounded endpoint states ------------------
+
+
+def _offline_health() -> dict[str, object]:
+    return {
+        "reachable": False,
+        "models": [],
+        "model_served": False,
+        "error": "connection refused",
+    }
+
+
+def test_inspect_json_marks_absent_config_without_calling_it_zero_activity(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr("switchboard.cli.health", lambda config: _offline_health())
+    rc = main(["inspect", "--json"])
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert report["state"] == "absent"
+    assert report["config_state"] == "absent"
+    assert report["source"] == "defaults"
+    assert report["offload_active"] is False
+    assert report["endpoint_status"] == "offline"
+
+
+def test_inspect_json_reports_invalid_config_without_a_health_claim(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    invalid = tmp_path / "invalid.json"
+    invalid.write_text("{not json", encoding="utf-8")
+    monkeypatch.setenv("SWITCHBOARD_CONFIG", str(invalid))
+
+    def should_not_probe(config: SwitchboardConfig) -> dict[str, object]:
+        raise AssertionError(f"invalid config must not probe endpoint: {config}")
+
+    monkeypatch.setattr("switchboard.cli.health", should_not_probe)
+    rc = main(["inspect", "--json"])
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert report["state"] == "invalid"
+    assert report["source"] == f"env:{invalid}"
+    assert report["offload_active"] is None
+    assert report["endpoint_status"] == "not-probed"
+    assert report["error"]
+
+
+def test_inspect_json_distinguishes_inactive_config(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = tmp_path / "inactive.json"
+    config.write_text(
+        json.dumps({"less_token_mode": False, "enabled_call_sites": {"review-deep-style": True}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SWITCHBOARD_CONFIG", str(config))
+    monkeypatch.setattr(
+        "switchboard.cli.health",
+        lambda config: {
+            "reachable": True,
+            "models": ["coder-30b"],
+            "model_served": True,
+            "error": None,
+        },
+    )
+    rc = main(["inspect", "--json"])
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert report["state"] == "inactive"
+    assert report["offload_active"] is False
+    assert report["sites"][0]["site_enabled"] is True
+    assert report["sites"][0]["offload_allowed"] is False
+
+
+def test_inspect_json_distinguishes_active_offline_config(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = tmp_path / "active.json"
+    config.write_text(
+        json.dumps({"enabled_call_sites": {"review-deep-style": True}}), encoding="utf-8"
+    )
+    monkeypatch.setenv("SWITCHBOARD_CONFIG", str(config))
+    monkeypatch.setattr("switchboard.cli.health", lambda config: _offline_health())
+    rc = main(["inspect", "--json"])
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert report["state"] == "active-offline"
+    assert report["offload_active"] is True
+    assert report["endpoint_status"] == "offline"
+
+
+def test_inspect_json_reports_effective_model_effort_and_active_online_state(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = tmp_path / "online.json"
+    config.write_text(
+        json.dumps(
+            {
+                "enabled_call_sites": {"review-deep-style": "pinned-model"},
+                "effort": {"review-deep-style": "high"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("SWITCHBOARD_CONFIG", str(config))
+    monkeypatch.setattr(
+        "switchboard.cli.health",
+        lambda config: {
+            "reachable": True,
+            "models": ["pinned-model"],
+            "model_served": True,
+            "error": None,
+        },
+    )
+    rc = main(["inspect", "--json"])
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert report["state"] == "active-online"
+    site = report["sites"][0]
+    assert site["configured_model"] == "pinned-model"
+    assert site["default_model"] == "coder-30b"
+    assert site["effective_model"] == "pinned-model"
+    assert site["effort_hint"] == "high"
+    assert "not bake-off certification" in report["limitations"][0]
+
+
+def test_observatory_contract_matches_inspect_runtime_shape() -> None:
+    contract_path = Path(__file__).parents[1] / "docs" / "observatory-contract.json"
+    contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    inspect_contract = contract["inspect"]
+
+    assert inspect_contract["schema_version"] == INSPECT_SCHEMA_VERSION
+    assert inspect_contract["states"] == list(INSPECT_STATES)
+    assert inspect_contract["endpoint_statuses"] == list(ENDPOINT_STATUSES)
+    assert inspect_contract["site_fields"] == [
+        "site",
+        "configured_value",
+        "configured_model",
+        "default_model",
+        "effective_model",
+        "site_enabled",
+        "offload_allowed",
+        "effort_hint",
+    ]

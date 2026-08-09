@@ -21,6 +21,7 @@ from switchboard.bakeoff import (
     load_suite,
     render,
     render_jsonl,
+    render_observatory_artifact,
     run_bakeoff,
     score_runner,
 )
@@ -416,3 +417,17 @@ def test_canonical_suite_renders_stably() -> None:
     local_defer = next(r for r in rows if r["runner"] == "local" and r["label"] == "bare-except")
     assert local_defer["verdict"] is None
     assert local_defer["deferred"] is True
+
+
+def test_canonical_suite_renders_versioned_observatory_artifact_stably() -> None:
+    report = run_bakeoff(load_suite(SUITE_PATH))
+    artifact = render_observatory_artifact(report)
+    payload = json.loads(artifact)
+
+    assert artifact == render_observatory_artifact(report)
+    assert payload["schema_version"] == 1
+    assert payload["artifact"] == "switchboard-bakeoff"
+    assert payload["slice"] == "review-deep-style"
+    assert len(payload["runners"]) == 3
+    assert len(payload["rows"]) == 3 * 8
+    assert "not live endpoint evidence" in payload["limitations"][0]

@@ -2,17 +2,30 @@
 
 from __future__ import annotations
 
+import json
+from dataclasses import fields
+from pathlib import Path
+
 import pytest
 
 from switchboard.config import (
     ALLOWED_EFFORT_TIERS,
+    ALLOWED_TOP_LEVEL_FIELDS,
+    CONFIG_DIRECTORY_NAME,
+    CONFIG_FILENAME,
+    CONFIG_SOURCE_PRECEDENCE,
     DEFAULT_BASE_URL,
+    DEFAULT_COLD_TIMEOUT_S,
     DEFAULT_MAX_TOKENS,
     DEFAULT_MODEL,
+    DEFAULT_WARM_TIMEOUT_S,
+    ENV_VAR,
     MIN_MAX_TOKENS,
     ConfigError,
     SwitchboardConfig,
 )
+
+CONTRACT_PATH = Path(__file__).parents[1] / "docs" / "observatory-contract.json"
 
 
 def test_defaults_match_pinned_contract() -> None:
@@ -194,3 +207,33 @@ def test_effort_non_str_tier_rejected() -> None:
 def test_effort_bad_task_class_name_rejected() -> None:
     with pytest.raises(ConfigError, match="task_class"):
         SwitchboardConfig(effort={"bad task class": "low"})
+
+
+# --- Step 72: producer-owned observatory fixture fails on config/path/default drift -------
+
+
+def test_observatory_contract_matches_config_runtime_facts() -> None:
+    contract = json.loads(CONTRACT_PATH.read_text(encoding="utf-8"))
+    config = contract["config"]
+    defaults = SwitchboardConfig()
+
+    assert contract["schema_version"] == 1
+    assert config["directory_name"] == CONFIG_DIRECTORY_NAME
+    assert config["filename"] == CONFIG_FILENAME
+    assert config["environment_variable"] == ENV_VAR
+    assert [item["label"] for item in config["source_precedence"]] == list(CONFIG_SOURCE_PRECEDENCE)
+    assert config["fields"] == [field.name for field in fields(SwitchboardConfig)]
+    assert set(config["fields"]) == ALLOWED_TOP_LEVEL_FIELDS
+    assert config["defaults"] == {
+        "less_token_mode": defaults.less_token_mode,
+        "enabled_call_sites": defaults.enabled_call_sites,
+        "effort": defaults.effort,
+        "base_url": DEFAULT_BASE_URL,
+        "model": DEFAULT_MODEL,
+        "cold_timeout_s": DEFAULT_COLD_TIMEOUT_S,
+        "warm_timeout_s": DEFAULT_WARM_TIMEOUT_S,
+        "max_tokens": DEFAULT_MAX_TOKENS,
+    }
+    validation = config["validation"]
+    assert validation["max_tokens_minimum"] == MIN_MAX_TOKENS
+    assert validation["allowed_effort_tiers"] == sorted(ALLOWED_EFFORT_TIERS)

@@ -38,6 +38,21 @@ Built to the D1 contract pinned in
   kill criterion (revert if disagreement exceeds the threshold, default 0.20). `run_shadow_live.py`
   re-measures against the live endpoint.
 
+## Operator surfaces
+
+- `uv run python -m switchboard inspect --json` is the primary read surface. It reports the
+  selected config source, inactive/active state, effective model and `effort` hint per configured
+  site, plus one bounded endpoint probe. Endpoint reachability is not quality or certification
+  evidence; `effort` is Claude-side metadata only and is not consumed by the local client.
+- `uv run python -m switchboard config` is the loud validation pre-flight. It resolves and validates
+  config without probing or starting the endpoint. Use `--path` before installing a candidate file.
+- `uv run python -m switchboard bakeoff --suite suites\review-deep-style.json --output-dir _tmp`
+  scores a frozen, recorded suite without network access. It writes `report.md`, `scores.jsonl`,
+  and bounded versioned `bakeoff.json`; the latter is the observatory-consumable artifact. A recorded
+  PASS is not live endpoint evidence, a caller-wiring claim, or permission to make the model a gate.
+- `scripts\start-offload.ps1` only manages endpoint availability. Its `-Smoke` mode is
+  non-destructive; the one-time icon installer remains convenience setup, not a dashboard action.
+
 ## Key contract points
 
 - `max_tokens` defaults to **800** (floor 600) as generous headroom. The default model
@@ -104,6 +119,33 @@ live for those sites.
 The **local endpoint must be up** (llama-swap serving `coder-30b` on `localhost:8080`) for a
 judge to return a *verdict*; if it is down, judges *defer* (`reason_class: unreachable`) — still
 safe, just no quota saved.
+
+### The endpoint launcher (one-click)
+
+`scripts/start-offload.ps1` is the retained endpoint-only launcher. It wakes WSL, starts
+`llama-swap.service`, probes `:8080/v1/models`, and holds WSL warm while its foreground window is
+open. On normal exit it stops the service it started. It never creates, copies, changes, or enables
+the Switchboard config: the deployed config above remains the policy switch, so an endpoint with no
+enabled certified site still causes judges to defer safely.
+
+```powershell
+# non-destructive prerequisite check; does not wake WSL, touch the service, or change config
+powershell -ExecutionPolicy Bypass -NoProfile -File scripts\start-offload.ps1 -Smoke
+
+# run the endpoint launcher directly (Ctrl-C or closing the window releases the endpoint)
+powershell -ExecutionPolicy Bypass -NoProfile -File scripts\start-offload.ps1
+```
+
+For one-time desktop convenience only, install the shortcut below. It is not a dashboard action and
+does not alter the policy config:
+
+```powershell
+# optional smoke; verifies the launcher is present and does not create a shortcut
+powershell -ExecutionPolicy Bypass -NoProfile -File scripts\install-offload-icon.ps1 -Smoke
+
+# create or refresh the Desktop shortcut
+powershell -ExecutionPolicy Bypass -NoProfile -File scripts\install-offload-icon.ps1
+```
 
 ### Turn it OFF
 

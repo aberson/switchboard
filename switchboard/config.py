@@ -212,6 +212,59 @@ class SwitchboardConfig:
         return self.effort.get(task_class)
 
 
+@dataclass(frozen=True, slots=True)
+class SiteInspection:
+    """One configured site's read-only effective routing facts for ``inspect``.
+
+    A site can be present only in the ``effort`` map, explicitly disabled, enabled
+    with the default model, or enabled with a model pin.  All of those states remain
+    distinct in the serialized report; in particular, a false value is not treated as
+    an absent setting and an absent effort hint stays ``None`` rather than a made-up
+    tier.
+    """
+
+    site: str
+    configured_value: bool | str | None
+    configured_model: str | None
+    default_model: str
+    effective_model: str
+    site_enabled: bool
+    offload_allowed: bool
+    effort_hint: str | None
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "site": self.site,
+            "configured_value": self.configured_value,
+            "configured_model": self.configured_model,
+            "default_model": self.default_model,
+            "effective_model": self.effective_model,
+            "site_enabled": self.site_enabled,
+            "offload_allowed": self.offload_allowed,
+            "effort_hint": self.effort_hint,
+        }
+
+
+def inspect_sites(config: SwitchboardConfig) -> tuple[SiteInspection, ...]:
+    """Return each configured site's effective model and gate facts in stable order."""
+    names = sorted(set(config.enabled_call_sites) | set(config.effort))
+    return tuple(
+        SiteInspection(
+            site=site,
+            configured_value=config.enabled_call_sites.get(site),
+            configured_model=(
+                value if isinstance(value := config.enabled_call_sites.get(site), str) else None
+            ),
+            default_model=config.model,
+            effective_model=config.model_for(site),
+            site_enabled=config.is_call_site_enabled(site),
+            offload_allowed=config.offload_allowed(site),
+            effort_hint=config.effort_for(site),
+        )
+        for site in names
+    )
+
+
 # The single source of truth for "which top-level keys a config file may contain": the
 # dataclass field set. from_mapping() and the offload-scan round-trip test both import this,
 # so adding a config field can never desync the producer, the consumer, and the test.
@@ -220,6 +273,24 @@ ALLOWED_TOP_LEVEL_FIELDS: frozenset[str] = frozenset(f.name for f in fields(Swit
 # Env var an operator sets to point at a config file (highest precedence after an explicit arg).
 ENV_VAR = "SWITCHBOARD_CONFIG"
 
+# Public contract facts used by the observatory fixture and its drift test.
+CONFIG_DIRECTORY_NAME = ".switchboard"
+CONFIG_FILENAME = "config.json"
+CONFIG_SOURCE_PRECEDENCE: tuple[str, ...] = ("arg", "env", "home", "defaults")
+
+
+@dataclass(frozen=True, slots=True)
+class _ConfigSource:
+    """One resolved config source, factored so inspect and load share precedence."""
+
+    candidate: str | None
+    label_prefix: str
+    require_exists: bool
+
+    @property
+    def label(self) -> str:
+        return "defaults" if self.candidate is None else f"{self.label_prefix}:{self.candidate}"
+
 
 def _default_config_path() -> Path:
     """The home-directory default config location.
@@ -227,7 +298,27 @@ def _default_config_path() -> Path:
     Factored into its own function so tests can monkeypatch it and never read a real
     ``~/.switchboard/config.json`` that happens to exist on the dev machine.
     """
-    return Path.home() / ".switchboard" / "config.json"
+    return Path.home() / CONFIG_DIRECTORY_NAME / CONFIG_FILENAME
+
+
+def _resolve_config_source(path: str | None = None) -> _ConfigSource:
+    """Resolve config precedence without opening the selected file."""
+    if path is not None:
+        return _ConfigSource(candidate=path, label_prefix="arg", require_exists=True)
+
+    env_path = os.environ.get(ENV_VAR)
+    if env_path:
+        return _ConfigSource(candidate=env_path, label_prefix="env", require_exists=True)
+
+    home = _default_config_path()
+    if home.is_file():
+        return _ConfigSource(candidate=str(home), label_prefix="home", require_exists=False)
+    return _ConfigSource(candidate=None, label_prefix="", require_exists=False)
+
+
+def config_source_label(path: str | None = None) -> str:
+    """Return the source selected by normal precedence, even if its content is invalid."""
+    return _resolve_config_source(path).label
 
 
 def load_config(path: str | None = None) -> tuple[SwitchboardConfig, str]:
@@ -249,27 +340,13 @@ def load_config(path: str | None = None) -> tuple[SwitchboardConfig, str]:
     The ``judge`` hot path wraps this defer-safely (a ConfigError there degrades to a Claude
     fallback, never a crash); the ``config`` subcommand lets it raise so the operator sees it.
     """
-    candidate: str | None = None
-    label_prefix = ""
-    require_exists = False
-
-    if path is not None:
-        candidate, label_prefix, require_exists = path, "arg", True
-    else:
-        env_path = os.environ.get(ENV_VAR)
-        if env_path:
-            candidate, label_prefix, require_exists = env_path, "env", True
-        else:
-            home = _default_config_path()
-            if home.is_file():
-                # Already confirmed to exist; treat any later read failure as an error.
-                candidate, label_prefix = str(home), "home"
-
-    if candidate is None:
+    source = _resolve_config_source(path)
+    if source.candidate is None:
         return SwitchboardConfig(), "defaults"
 
+    candidate = source.candidate
     p = Path(candidate)
-    if require_exists and not p.is_file():
+    if source.require_exists and not p.is_file():
         raise ConfigError(f"config file not found: {candidate!r}")
 
     try:
@@ -284,4 +361,4 @@ def load_config(path: str | None = None) -> tuple[SwitchboardConfig, str]:
         raise ConfigError(f"config {candidate!r} must be a JSON object, got {type(raw).__name__}")
 
     cfg = SwitchboardConfig.from_mapping(cast("Mapping[str, object]", raw))
-    return cfg, f"{label_prefix}:{candidate}"
+    return cfg, source.label

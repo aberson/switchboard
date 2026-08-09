@@ -11,6 +11,7 @@ we pin the CLI contract: exit codes, the two written artifacts, and the grep-abl
 from __future__ import annotations
 
 import io
+import json
 from pathlib import Path
 
 from switchboard.cli import run_bakeoff_cli
@@ -27,13 +28,18 @@ def test_run_bakeoff_cli_good_suite_writes_outputs_and_summary(tmp_path: Path) -
     # Success exit code.
     assert rc == 0
 
-    # Both artifacts land in the output dir.
+    # The legacy human/NDJSON artifacts and the versioned observatory artifact land together.
     report_md = tmp_path / "report.md"
     scores_jsonl = tmp_path / "scores.jsonl"
+    bakeoff_json = tmp_path / "bakeoff.json"
     assert report_md.is_file()
     assert scores_jsonl.is_file()
+    assert bakeoff_json.is_file()
     assert report_md.read_text(encoding="utf-8").strip()  # non-empty
     assert scores_jsonl.read_text(encoding="utf-8").strip()  # non-empty
+    artifact = json.loads(bakeoff_json.read_text(encoding="utf-8"))
+    assert artifact["schema_version"] == 1
+    assert artifact["artifact"] == "switchboard-bakeoff"
 
     summary = out.getvalue().strip()
     # The grep-able summary names the slice + the pass/fail roll-up.
@@ -64,6 +70,7 @@ def test_run_bakeoff_cli_malformed_suite_returns_2_and_writes_nothing(tmp_path: 
     # No report / scores written, and the summary line was never printed.
     assert not (out_dir / "report.md").exists()
     assert not (out_dir / "scores.jsonl").exists()
+    assert not (out_dir / "bakeoff.json").exists()
     assert out.getvalue() == ""
 
 
@@ -79,4 +86,5 @@ def test_run_bakeoff_cli_invalid_json_returns_2_and_writes_nothing(tmp_path: Pat
     assert rc == 2
     assert not (out_dir / "report.md").exists()
     assert not (out_dir / "scores.jsonl").exists()
+    assert not (out_dir / "bakeoff.json").exists()
     assert out.getvalue() == ""

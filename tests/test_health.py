@@ -6,7 +6,7 @@ import urllib.error
 from collections.abc import Callable
 
 from switchboard.config import SwitchboardConfig
-from switchboard.health import health, is_warm, warm_up
+from switchboard.health import endpoint_status, health, is_warm, warm_up
 from tests.conftest import (
     MODELS_BODY,
     PASS_CONTENT,
@@ -50,6 +50,15 @@ def test_health_model_not_served(patch_health: ApplyStub) -> None:
     h = health(SwitchboardConfig(model="phantom-model"))
     assert h["reachable"] is True
     assert h["model_served"] is False
+
+
+def test_endpoint_status_keeps_offline_and_missing_model_distinct(patch_health: ApplyStub) -> None:
+    patch_health(make_raising_urlopen(urllib.error.URLError(ConnectionRefusedError())))
+    assert endpoint_status(health()) == "offline"
+
+    patch_health(make_json_urlopen(MODELS_BODY))
+    result = health(SwitchboardConfig(model="phantom-model"))
+    assert endpoint_status(result) == "online-model-missing"
 
 
 def test_is_warm_true(patch_health: ApplyStub) -> None:

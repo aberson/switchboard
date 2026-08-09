@@ -41,7 +41,9 @@ import argparse
 import json
 import sys
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from switchboard.bakeoff import (
     BakeoffError,
@@ -49,6 +51,7 @@ from switchboard.bakeoff import (
     load_suite,
     render,
     render_jsonl,
+    render_observatory_artifact,
     run_bakeoff,
 )
 from switchboard.client import (
@@ -59,11 +62,36 @@ from switchboard.client import (
     input_error_defer,
     local_judge,
 )
-from switchboard.config import ConfigError, SwitchboardConfig, load_config
+from switchboard.config import (
+    ConfigError,
+    SiteInspection,
+    SwitchboardConfig,
+    config_source_label,
+    inspect_sites,
+    load_config,
+)
+from switchboard.health import EndpointStatus, Health, endpoint_status, health
 from switchboard.metrics import METRICS, Metrics
 
 # Default output dir for `bakeoff` when --output-dir is omitted: a repo-local _tmp/ sibling.
 DEFAULT_BAKEOFF_OUTPUT = "_tmp"
+INSPECT_SCHEMA_VERSION = 1
+InspectState = Literal[
+    "absent",
+    "invalid",
+    "inactive",
+    "active-offline",
+    "active-online-model-missing",
+    "active-online",
+]
+INSPECT_STATES: tuple[InspectState, ...] = (
+    "absent",
+    "invalid",
+    "inactive",
+    "active-offline",
+    "active-online-model-missing",
+    "active-online",
+)
 
 
 def _read_prompt(prompt_file: str | None, prompt: str | None) -> str:
@@ -145,6 +173,7 @@ def run_bakeoff_cli(
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "report.md").write_text(render(report), encoding="utf-8")
     (out_dir / "scores.jsonl").write_text(render_jsonl(report), encoding="utf-8")
+    (out_dir / "bakeoff.json").write_text(render_observatory_artifact(report), encoding="utf-8")
 
     print(_bakeoff_summary_line(report, out_dir), file=out)  # type: ignore[arg-type]
     return 0
@@ -188,6 +217,135 @@ def _run_config(path: str | None) -> int:
     }
     json.dump(report, sys.stdout, indent=2)
     sys.stdout.write("\n")
+    return 0
+
+
+@dataclass(frozen=True, slots=True)
+class InspectReport:
+    """Versioned config + bounded endpoint facts for the operator ``inspect`` surface."""
+
+    schema_version: int
+    state: InspectState
+    config_state: Literal["absent", "valid", "invalid"]
+    source: str
+    offload_active: bool | None
+    endpoint_status: EndpointStatus | Literal["not-probed"]
+    config: dict[str, object] | None
+    health: Health | None
+    sites: tuple[SiteInspection, ...]
+    error: str | None
+    limitations: tuple[str, ...]
+
+    def to_json(self) -> dict[str, object]:
+        return {
+            "schema_version": self.schema_version,
+            "state": self.state,
+            "config_state": self.config_state,
+            "source": self.source,
+            "offload_active": self.offload_active,
+            "endpoint_status": self.endpoint_status,
+            "config": self.config,
+            "health": self.health,
+            "sites": [site.to_json() for site in self.sites],
+            "error": self.error,
+            "limitations": list(self.limitations),
+        }
+
+
+_INSPECT_LIMITATIONS = (
+    "Endpoint reachability is not bake-off certification or correctness evidence.",
+    "A configured effort hint is Claude-side metadata; the local judge client does not consume it.",
+    "No outcome or retry evidence is inferred from endpoint health or config state.",
+)
+
+
+def _inspect_state(
+    source: str, offload_active: bool, status: EndpointStatus
+) -> tuple[InspectState, Literal["absent", "valid"]]:
+    """Give no-config, inactive, endpoint, and model-serving states distinct labels."""
+    if source == "defaults":
+        return "absent", "absent"
+    if not offload_active:
+        return "inactive", "valid"
+    if status == "offline":
+        return "active-offline", "valid"
+    if status == "online-model-missing":
+        return "active-online-model-missing", "valid"
+    return "active-online", "valid"
+
+
+def build_inspect_report(path: str | None = None) -> InspectReport:
+    """Read validated config and one bounded health probe without mutating either system."""
+    source = config_source_label(path)
+    try:
+        config, source = load_config(path)
+    except ConfigError as exc:
+        return InspectReport(
+            schema_version=INSPECT_SCHEMA_VERSION,
+            state="invalid",
+            config_state="invalid",
+            source=source,
+            offload_active=None,
+            endpoint_status="not-probed",
+            config=None,
+            health=None,
+            sites=(),
+            error=str(exc),
+            limitations=_INSPECT_LIMITATIONS,
+        )
+
+    sites = inspect_sites(config)
+    offload_active = any(site.offload_allowed for site in sites)
+    health_result = health(config)
+    status = endpoint_status(health_result)
+    state, config_state = _inspect_state(source, offload_active, status)
+    return InspectReport(
+        schema_version=INSPECT_SCHEMA_VERSION,
+        state=state,
+        config_state=config_state,
+        source=source,
+        offload_active=offload_active,
+        endpoint_status=status,
+        config={
+            "less_token_mode": config.less_token_mode,
+            "default_model": config.model,
+            "base_url": config.base_url,
+            "cold_timeout_s": config.cold_timeout_s,
+            "warm_timeout_s": config.warm_timeout_s,
+            "max_tokens": config.max_tokens,
+        },
+        health=health_result,
+        sites=sites,
+        error=None,
+        limitations=_INSPECT_LIMITATIONS,
+    )
+
+
+def _print_inspect(report: InspectReport) -> None:
+    """Render the same facts in concise human form; JSON remains the stable contract."""
+    print("== switchboard inspect ==")
+    print(f"  state: {report.state}")
+    print(f"  source: {report.source}")
+    print(f"  endpoint: {report.endpoint_status}")
+    if report.error is not None:
+        print(f"  config error: {report.error}")
+        return
+    print(f"  offload active: {report.offload_active}")
+    for site in report.sites:
+        print(
+            f"  site={site.site} enabled={site.site_enabled} "
+            f"effective_model={site.effective_model} effort={site.effort_hint}"
+        )
+
+
+def _run_inspect(path: str | None, json_output: bool) -> int:
+    """Emit an inspect report for all config/endpoint states; invalid is data, not a crash."""
+    report = build_inspect_report(path)
+    if json_output:
+        json.dump(report.to_json(), sys.stdout, indent=2, sort_keys=True)
+        sys.stdout.write("\n")
+    else:
+        _print_inspect(report)
     return 0
 
 
@@ -237,7 +395,8 @@ def _build_parser() -> argparse.ArgumentParser:
         "bakeoff",
         help=(
             "Score a frozen suite's recorded runners against the reference "
-            "(agreement + cost + latency + 0.20 kill); write report.md + scores.jsonl."
+            "(agreement + cost + latency + 0.20 kill); write report.md, scores.jsonl, and "
+            "a versioned bakeoff.json artifact."
         ),
     )
     bakeoff.add_argument(
@@ -250,7 +409,10 @@ def _build_parser() -> argparse.ArgumentParser:
         "--output-dir",
         dest="output_dir",
         default=None,
-        help=f"Where to write report.md + scores.jsonl (default './{DEFAULT_BAKEOFF_OUTPUT}').",
+        help=(
+            "Where to write report.md, scores.jsonl, and bakeoff.json "
+            f"(default './{DEFAULT_BAKEOFF_OUTPUT}')."
+        ),
     )
 
     cfg_cmd = sub.add_parser(
@@ -263,6 +425,22 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Validate a specific config file instead of the resolved source "
         "(e.g. check /offload-scan's offload-config.json before installing it).",
+    )
+
+    inspect_cmd = sub.add_parser(
+        "inspect",
+        help="report config, effective site models, and bounded endpoint health",
+    )
+    inspect_cmd.add_argument(
+        "--path",
+        dest="path",
+        default=None,
+        help="inspect a specific config file instead of the resolved config source",
+    )
+    inspect_cmd.add_argument(
+        "--json",
+        action="store_true",
+        help="write the versioned machine-readable report to stdout",
     )
     return parser
 
@@ -301,6 +479,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "config":
         return _run_config(args.path)
+
+    if args.command == "inspect":
+        return _run_inspect(args.path, args.json)
 
     # argparse `required=True` on the subparser makes this unreachable, but keep it total.
     parser.error(f"unknown command {args.command!r}")  # pragma: no cover
