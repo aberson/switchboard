@@ -1,0 +1,498 @@
+{
+  "schema_version": 1,
+  "project": "switchboard",
+  "plan_path": "docs/plans/master_plan.md",
+  "plan_sha256": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+  "units": "hours",
+  "estimates": [
+    {
+      "step_id": "B3",
+      "title": "B2b — Live certify-and-enable smoke (operator)",
+      "worker_hours": {
+        "low": 0.4,
+        "high": 1.0
+      },
+      "attention_hours": {
+        "low": 0.5,
+        "high": 1.5
+      },
+      "dependencies": [],
+      "rationale": "Inspect config, certify, enable only qualified style slice and demonstrate surgical kill; preparation gap remains held.",
+      "type": "operator",
+      "status": "held_readiness",
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "estimated_at": "2026-10-14T17:12:14.907070Z",
+      "waiting_hours": null,
+      "work_id": "work_703dd1bce761b14e5863b2b9eb8577c85ff1516d8f8a6af528fedcf999fbaa63",
+      "source_digest": "70ab4b46fae23fcc1cb5489255a598838b9c7fcf7b396fb3e2aac292797edd0c",
+      "plan_path": "docs/plans/master_plan.md",
+      "hold_reason": "",
+      "confidence_note": "Original qualitative rating subjective-low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "enabled": true,
+      "unresolved_dependencies": [
+        "Step 2 (B2a)",
+        "a reliable local endpoint (gate (d)). *(Set `max_tokens` ≥ 2000 in the live"
+      ],
+      "source_ref": {
+        "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+        "locator": "switchboard/docs/plans/master_plan.md",
+        "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+        "line_start": 325,
+        "line_end": 348
+      }
+    },
+    {
+      "step_id": "O74",
+      "title": "Real routing UAT",
+      "worker_hours": {
+        "low": 0.15,
+        "high": 0.4
+      },
+      "attention_hours": {
+        "low": 0.4,
+        "high": 1.0
+      },
+      "dependencies": [],
+      "rationale": "Exercise inspect/config, recorded bakeoff, launcher policy separation and real routing evidence.",
+      "type": "operator",
+      "status": "pending",
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "estimated_at": "2026-10-14T17:12:14.907070Z",
+      "waiting_hours": null,
+      "work_id": "work_d8e3e17b0a896228181f7ed0dd21e8d929ee2b9a087f00159536fdcc82408440",
+      "source_digest": "c536ff33f30ee6b6eece49b1a2ae014079ec35b1d433b357aad0c1ce4d7b3092",
+      "plan_path": "docs/plans/master_plan.md",
+      "hold_reason": "",
+      "confidence_note": "Original qualitative rating subjective-low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "enabled": true,
+      "unresolved_dependencies": [
+        "73"
+      ],
+      "source_ref": {
+        "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+        "locator": "switchboard/docs/plans/master_plan.md",
+        "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+        "line_start": 459,
+        "line_end": 550
+      }
+    },
+    {
+      "step_id": "P7",
+      "title": "Operator UAT + open the PR(s)",
+      "worker_hours": {
+        "low": 0.5,
+        "high": 1.5
+      },
+      "attention_hours": {
+        "low": 1.0,
+        "high": 2.5
+      },
+      "dependencies": [],
+      "rationale": "External browser acceptance and two independent feature branches; publication needs owner workflow.",
+      "type": "operator",
+      "status": "held_external",
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "estimated_at": "2026-10-14T17:12:14.907070Z",
+      "waiting_hours": null,
+      "work_id": "work_e73584eb03711de3b709728d9e1dbb5d79d967d8d3b2b4002f535c2305e29268",
+      "source_digest": "c088c4ac93ccc765420a61dfaf18a66de96b43028bd1d45540030425960f2ff6",
+      "plan_path": "docs/plans/master_plan.md",
+      "hold_reason": "",
+      "confidence_note": "Original qualitative rating subjective-low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "enabled": true,
+      "unresolved_dependencies": [
+        "4",
+        "6"
+      ],
+      "source_ref": {
+        "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+        "locator": "switchboard/docs/plans/master_plan.md",
+        "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+        "line_start": 642,
+        "line_end": 896
+      }
+    },
+    {
+      "step_id": "T1",
+      "title": "Scaffold `switchboard-tune` and mine real judge inputs",
+      "worker_hours": {
+        "low": 4.0,
+        "high": 8.0
+      },
+      "attention_hours": {
+        "low": 0.2,
+        "high": 0.5
+      },
+      "dependencies": [],
+      "rationale": "Mine real deduplicated small source hunks and scaffold shared prompt identity.",
+      "type": "code",
+      "status": "held_proposed_external",
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "estimated_at": "2026-10-14T17:12:14.907070Z",
+      "waiting_hours": null,
+      "work_id": "work_6560766b561b24f1119b7507ccc77590be49f429c426fb468102de16bbf23e83",
+      "source_digest": "e727555058dc3edfc4fab8b7f89fa0ec0f691ef835c37a0679897ebb17ae89ed",
+      "plan_path": "docs/plans/master_plan.md",
+      "hold_reason": "",
+      "confidence_note": "Original qualitative rating subjective-low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "enabled": true,
+      "unresolved_dependencies": [
+        "none"
+      ],
+      "source_ref": {
+        "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+        "locator": "switchboard/docs/plans/master_plan.md",
+        "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+        "line_start": 897,
+        "line_end": 906
+      }
+    },
+    {
+      "step_id": "T2",
+      "title": "Mint teacher labels with Claude and freeze the golden set",
+      "worker_hours": {
+        "low": 4.0,
+        "high": 8.0
+      },
+      "attention_hours": {
+        "low": 0.5,
+        "high": 1.5
+      },
+      "dependencies": [],
+      "rationale": "Teacher subprocess receipts, freeze split hashes and cross-split near-duplicate guard; paid/runtime waiting separate.",
+      "type": "code",
+      "status": "held_proposed_external",
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "estimated_at": "2026-10-14T17:12:14.907070Z",
+      "waiting_hours": null,
+      "work_id": "work_4ca7fd88cc306fa8e7b48c266de9f118e0ea6b0f6088eb6d35ad4d87ff7d69fa",
+      "source_digest": "7b1c2847184714332a4874e0d45bcc9f46f14e15c0e26352dd029430b633451f",
+      "plan_path": "docs/plans/master_plan.md",
+      "hold_reason": "",
+      "confidence_note": "Original qualitative rating subjective-low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "enabled": true,
+      "unresolved_dependencies": [
+        "1"
+      ],
+      "source_ref": {
+        "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+        "locator": "switchboard/docs/plans/master_plan.md",
+        "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+        "line_start": 907,
+        "line_end": 916
+      }
+    },
+    {
+      "step_id": "T3",
+      "title": "Eval harness with calibration anchors and the zero-dep guard",
+      "worker_hours": {
+        "low": 4.0,
+        "high": 8.0
+      },
+      "attention_hours": {
+        "low": 0.2,
+        "high": 0.5
+      },
+      "dependencies": [],
+      "rationale": "Strict/coverage/agreement scoring, calibration anchors and zero-dependency guard.",
+      "type": "code",
+      "status": "held_proposed_external",
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "estimated_at": "2026-10-14T17:12:14.907070Z",
+      "waiting_hours": null,
+      "work_id": "work_4e737d3ce96060b48dd232e3469edb3ba0afb3910b59f31b23b192283d880df4",
+      "source_digest": "7fe506b015d3d7a9905245a6de360e7dedc16198d27ac0876b6d5f1efb30976e",
+      "plan_path": "docs/plans/master_plan.md",
+      "hold_reason": "",
+      "confidence_note": "Original qualitative rating subjective-low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "enabled": true,
+      "unresolved_dependencies": [
+        "2"
+      ],
+      "source_ref": {
+        "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+        "locator": "switchboard/docs/plans/master_plan.md",
+        "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+        "line_start": 917,
+        "line_end": 926
+      }
+    },
+    {
+      "step_id": "T4",
+      "title": "End-to-end smoke gate — 20 rows, 10 steps, one real verdict",
+      "worker_hours": {
+        "low": 5.0,
+        "high": 10.0
+      },
+      "attention_hours": {
+        "low": 0.4,
+        "high": 1.0
+      },
+      "dependencies": [],
+      "rationale": "Real 20-row training-to-GGUF-to-runtime smoke plus sentinel and chat-template parity.",
+      "type": "code",
+      "status": "held_proposed_external",
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "estimated_at": "2026-10-14T17:12:14.907070Z",
+      "waiting_hours": null,
+      "work_id": "work_d323f504b26fcd14f53f4bec67cd965772528aa8ac846705dd861ce059f0f2d9",
+      "source_digest": "b182b6c0fe981eddac7ca7827136f43fcd0de6413879381ee8a0b29ec104edfe",
+      "plan_path": "docs/plans/master_plan.md",
+      "hold_reason": "",
+      "confidence_note": "Original qualitative rating subjective-low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "enabled": true,
+      "unresolved_dependencies": [
+        "3"
+      ],
+      "source_ref": {
+        "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+        "locator": "switchboard/docs/plans/master_plan.md",
+        "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+        "line_start": 927,
+        "line_end": 936
+      }
+    },
+    {
+      "step_id": "T5",
+      "title": "Baseline — score the untuned student through the shipped runtime",
+      "worker_hours": {
+        "low": 2.0,
+        "high": 4.0
+      },
+      "attention_hours": {
+        "low": 0.2,
+        "high": 0.5
+      },
+      "dependencies": [],
+      "rationale": "Reproduce untuned baseline twice under identical runtime/quant and fixed manifest.",
+      "type": "code",
+      "status": "held_proposed_external",
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "estimated_at": "2026-10-14T17:12:14.907070Z",
+      "waiting_hours": null,
+      "work_id": "work_b57056a8e333fd6aad50e940265984a0e1fdc57e1c8d1dde34661a883d2de737",
+      "source_digest": "865314487be3c7de72bd37de77b524f79baf4a8860cd13cbecf4d8e6abd527e9",
+      "plan_path": "docs/plans/master_plan.md",
+      "hold_reason": "",
+      "confidence_note": "Original qualitative rating subjective-low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "enabled": true,
+      "unresolved_dependencies": [
+        "4"
+      ],
+      "source_ref": {
+        "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+        "locator": "switchboard/docs/plans/master_plan.md",
+        "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+        "line_start": 937,
+        "line_end": 946
+      }
+    },
+    {
+      "step_id": "T6",
+      "title": "Full QLoRA SFT run",
+      "worker_hours": {
+        "low": 3.0,
+        "high": 6.0
+      },
+      "attention_hours": {
+        "low": 0.25,
+        "high": 0.75
+      },
+      "dependencies": [],
+      "rationale": "Masked-prompt QLoRA training and dev checkpoint selection; GPU wall time separate.",
+      "type": "code",
+      "status": "held_proposed_external",
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "estimated_at": "2026-10-14T17:12:14.907070Z",
+      "waiting_hours": null,
+      "work_id": "work_9cf71132663af575ad15b46a86970ad3f8d0ca154fab801dffe84c83a1e5e405",
+      "source_digest": "a79eb07c27ed7c026f232101cbdf368b2e59979b8e438673f48e27886c16ce8d",
+      "plan_path": "docs/plans/master_plan.md",
+      "hold_reason": "",
+      "confidence_note": "Original qualitative rating subjective-low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "enabled": true,
+      "unresolved_dependencies": [
+        "5"
+      ],
+      "source_ref": {
+        "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+        "locator": "switchboard/docs/plans/master_plan.md",
+        "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+        "line_start": 947,
+        "line_end": 956
+      }
+    },
+    {
+      "step_id": "T7",
+      "title": "Eval the tuned student and write the honest comparison",
+      "worker_hours": {
+        "low": 3.0,
+        "high": 6.0
+      },
+      "attention_hours": {
+        "low": 0.3,
+        "high": 0.8
+      },
+      "dependencies": [],
+      "rationale": "Compare held-out results, persist disagreement pairs and four-part honest negative analysis.",
+      "type": "code",
+      "status": "held_proposed_external",
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "estimated_at": "2026-10-14T17:12:14.907070Z",
+      "waiting_hours": null,
+      "work_id": "work_2172e509ac914c679dc32a404703a2c303cb724690ed305d21a247f7ebd276d2",
+      "source_digest": "69f453f05a63f04445257af1e8bfc2b0428b8e3c6778556a49e094e299c83ff6",
+      "plan_path": "docs/plans/master_plan.md",
+      "hold_reason": "",
+      "confidence_note": "Original qualitative rating subjective-low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "enabled": true,
+      "unresolved_dependencies": [
+        "6"
+      ],
+      "source_ref": {
+        "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+        "locator": "switchboard/docs/plans/master_plan.md",
+        "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+        "line_start": 957,
+        "line_end": 967
+      }
+    },
+    {
+      "step_id": "T8",
+      "title": "Ship script — place, certify, and report",
+      "worker_hours": {
+        "low": 3.0,
+        "high": 6.0
+      },
+      "attention_hours": {
+        "low": 0.2,
+        "high": 0.5
+      },
+      "dependencies": [],
+      "rationale": "Dry-run artifact placement, config checks and certification reporting without enablement.",
+      "type": "code",
+      "status": "held_proposed_external",
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "estimated_at": "2026-10-14T17:12:14.907070Z",
+      "waiting_hours": null,
+      "work_id": "work_1e256e8763a9f0d3290cdd0b57edee749b03d51769ea7ca6abafa33e457eac6d",
+      "source_digest": "ca6d1d71ba97f886e1309022222a6958619bd4410843a1e6eb889cf2d478dca5",
+      "plan_path": "docs/plans/master_plan.md",
+      "hold_reason": "",
+      "confidence_note": "Original qualitative rating subjective-low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "enabled": true,
+      "unresolved_dependencies": [
+        "7"
+      ],
+      "source_ref": {
+        "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+        "locator": "switchboard/docs/plans/master_plan.md",
+        "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+        "line_start": 968,
+        "line_end": 976
+      }
+    },
+    {
+      "step_id": "T9",
+      "title": "Live certify and enable decision (operator)",
+      "worker_hours": {
+        "low": 0.3,
+        "high": 0.8
+      },
+      "attention_hours": {
+        "low": 0.6,
+        "high": 1.5
+      },
+      "dependencies": [],
+      "rationale": "Operator independently certifies and decides enable/do-not-enable only style slice.",
+      "type": "operator",
+      "status": "held_proposed_external",
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "estimated_at": "2026-10-14T17:12:14.907070Z",
+      "waiting_hours": null,
+      "work_id": "work_281e83ce6dd68a601b4042634605bb4c9372a078c3e2481b568d37ae142305d2",
+      "source_digest": "b9ec32d8bf86c49db2fa81eda9f5b649683545560d02cc192e941ff46bad90e9",
+      "plan_path": "docs/plans/master_plan.md",
+      "hold_reason": "",
+      "confidence_note": "Original qualitative rating subjective-low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "enabled": true,
+      "unresolved_dependencies": [
+        "8"
+      ],
+      "source_ref": {
+        "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+        "locator": "switchboard/docs/plans/master_plan.md",
+        "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+        "line_start": 977,
+        "line_end": 989
+      }
+    },
+    {
+      "step_id": "T10",
+      "title": "Optional DPO stretch",
+      "worker_hours": {
+        "low": 5.0,
+        "high": 10.0
+      },
+      "attention_hours": {
+        "low": 0.3,
+        "high": 0.8
+      },
+      "dependencies": [],
+      "rationale": "Conditional DPO training/eval only after at least 100 valid disagreement pairs.",
+      "type": "code",
+      "status": "conditional_deferred",
+      "basis": "model",
+      "model_id": "Codex session; runtime model not exposed",
+      "confidence": 0.35,
+      "estimated_at": "2026-10-14T17:12:14.907070Z",
+      "waiting_hours": null,
+      "work_id": "work_b034c56d3c2857ee6cd22c8dd956660a9a15d15207a1bc47939b9e6b3a96c8f4",
+      "source_digest": "e53adc7162249aa623fe34680bf0dbb41254ef448b4b0c535bf760469292d657",
+      "plan_path": "docs/plans/master_plan.md",
+      "hold_reason": "",
+      "confidence_note": "Original qualitative rating subjective-low; mapped to numeric scale for ForecastEstimate, not empirical calibration.",
+      "enabled": true,
+      "unresolved_dependencies": [
+        "9"
+      ],
+      "source_ref": {
+        "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+        "locator": "switchboard/docs/plans/master_plan.md",
+        "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+        "line_start": 990,
+        "line_end": 1273
+      }
+    }
+  ],
+  "excluded": "All DONE units, duplicate umbrella phases and archived substrate work. P7/T1-T10 and B3 readiness hold excluded from ready totals; no waiting/GPU/provider latency invented.",
+  "adapter_note": "Use source step IDs; resolve Ambition work_id and source_digest via the importer. These are forecasts, not elapsed observations.",
+  "identity_note": "work_id and source_digest come from Observatory normalization and forecast.fingerprint; raw plan SHA is separate.",
+  "compatibility": "Rows validate as ForecastEstimate. Portable worksheet only: production ForecastConfig is currently restricted to dev-observatory and 100 estimates; no saved forecast was modified.",
+  "assumptions": "Forward remaining effort in hours, including implementation and its checks/review. Operator attention is separate. Elapsed waits, service quotas and hardware availability are not labor. These are model forecasts, not measured history. Held rows remain disabled.",
+  "validated_at": "2026-10-14T17:53:49.535332Z"
+}

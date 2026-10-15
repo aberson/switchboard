@@ -8,7 +8,7 @@ llama-swap on `localhost:8080`, in WSL2) and **defers to Claude on any failure**
 planning, and correctness gates always stay on Claude. The package is **stdlib-only, zero-dependency**
 and **inert until a config is deployed** — every call site is disabled by default and `local_judge`
 defers with no network call. Full detail in [`README.md`](README.md); plans live at
-[`../docs/switchboard-offload-phase-b-plan.md`](../docs/switchboard-offload-phase-b-plan.md) and siblings.
+[`../docs/switchboard-offload-phase-b-plan.md`](docs/plans/master_plan.md) and siblings.
 
 ## Stack
 

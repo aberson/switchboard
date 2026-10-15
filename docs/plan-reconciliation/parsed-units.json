@@ -1,0 +1,1017 @@
+{
+  "project": "switchboard",
+  "plan_path": "docs/plans/master_plan.md",
+  "plan_sha256": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+  "notices": [],
+  "diagnostic": null,
+  "units": [
+    {
+      "work_id": "work_b3295405b96c2f0374d496aa743d85719caba1f2003cd2158e51ff9dbb220f59",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 282,
+          "line_end": 303,
+          "excerpt": "### Step B1: B1 — Slice bake-off harness\n- **Problem:** Build a switchboard-native multi-runner bake-off harness that scores a slice's\n  candidate runners on a frozen JSON suite by agreement-with-reference + cost + latency, with the\n  0.20 disagreement kill criterion deciding pass/fail per runner. Reuse `run_shadow` as the\n  agreement+kill engine and **port** void_furnace's `BenchmarkReport`/`render_jsonl` shape (do not\n  import void_furnace; keep `dependencies = []`). Ship a recorded-output deterministic mode and a\n  hand-authored `review-deep-style` seed suite (~6–10 real-shaped cases). This harness is also the\n  judging-Phase-3 live-sweep artifact.\n- **Type:** code\n- **Issue:** #235\n- **Flags:** --reviewers code\n- **Produces:** `switchboard/switchboard/bakeoff.py`, `switchboard/suites/review-deep-style.json`,\n  `switchboard/suites/recorded/*.json`, `switchboard/tests/test_bakeoff.py`, a\n  `python -m switchboard bakeoff` subcommand (writes `report.md` + `scores.jsonl`).\n- **Done when:** the harness runs the frozen suite across ≥2 candidate runners and emits per-runner\n  `{agreement, cost, latency, pass/fail@0.20}`; it is deterministic given recorded candidate\n  outputs (a committed golden test passes with no endpoint and no PR #233 merge); `mypy --strict`\n  + `ruff` clean; `dependencies = []` unchanged.\n- **Depends on:** none\n- **Status:** DONE (2026-06-24)\n\n<!-- autofix-applied: 2026-06-23 -->"
+        }
+      ],
+      "title": "B1 — Slice bake-off harness",
+      "summary": "### Step B1: B1 — Slice bake-off harness\n- **Problem:** Build a switchboard-native multi-runner bake-off harness that scores a slice's\n  candidate runners on a frozen JSON suite by agreement-with-reference + cost + latency, with the\n  0.20 disagreement kill criterion deciding pass/fail per runner. Reuse `run_shadow` as the\n  agreement+kill engine and **port** void_furnace's `BenchmarkReport`/`render_jsonl` shape (do not\n  import void_furnace; keep `dependencies = []`). Ship a recorded-output deterministic mode and a\n  hand-authored `review-deep-style` seed suite (~6–10 real-shaped cases). This harness is also the\n  judging-Phase-3 live-sweep artifact.\n- **Type:** code\n- **Issue:** #235\n- **Flags:** --reviewers code\n- **Produces:** `switchboard/switchboard/bakeoff.py`, `switchboard/suites/review-deep-style.json`,\n  `switchboard/suites/recorded/*.json`, `switchboard/tests/test_bakeoff.py`, a\n  `python -m switchboard bakeoff` subcommand (writes `report.md` + `scores.jsonl`).\n- **Done when:** the harness runs the frozen suite across ≥2 candidate runners and emits per-runner\n  `{agreement, cost, latency, pass/fail@0.20}`; it is deterministic given recorded candidate\n  outputs (a committed golden test passes with no endpoint and no PR #233 merge); `mypy --strict`\n  + `ruff` clean; `dependencies = []` unchanged.\n- **Depends on:** none\n- **Status:** DONE (2026-06-24)\n\n<!-- autofix-applied: 2026-06-23 -->",
+      "acceptance": "the harness runs the frozen suite across ≥2 candidate runners and emits per-runner",
+      "kind": "task",
+      "status": "done",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "none"
+      ],
+      "write_paths": null,
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "code",
+      "flags": "--reviewers code",
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "2ab747af95165adf655319e021972723bb9d0ca3e66d456afc4c41f39bcf32dd",
+      "heading": "### Step B1: B1 — Slice bake-off harness"
+    },
+    {
+      "work_id": "work_c667dd046f398f687a237da3f6a2f690e0337794003ecfbfdfc64ba9dbf02a7b",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 304,
+          "line_end": 324,
+          "excerpt": "### Step B2: B2a — Certify review-deep-style + enablement plumbing\n- **Problem:** Add a certification helper that turns a B1 `bakeoff` report for `review-deep-style`\n  into a shippable PASS / \"do-not-enable\" verdict, stage the enable config at the Phase-A canonical\n  path (`~/.switchboard/config.json`), reconcile the stale `offload-config.json` references the\n  Phase-A rename left in the README + installer scripts, and add an automated test proving the\n  `run_shadow` kill signal fires on injected disagreement (`disagreement_rate > 0.20 → kill=True`).\n- **Type:** code\n- **Issue:** #236\n- **Flags:** --reviewers code\n- **Produces:** certification helper + staged enable config (`review-deep-style: true`); updated\n  `switchboard/README.md` + `scripts/start-offload.ps1` (+ `install-offload-icon.ps1` /\n  `offload-config.template.json` / test fixtures as the grep requires); a new injected-disagreement\n  auto-revert test.\n- **Done when:** the cert helper emits a deterministic PASS/do-not-enable verdict from a B1 report;\n  the injected-disagreement test asserts `kill=True`; `grep -ri offload-config.json switchboard/`\n  returns only intentional/historical references (all live paths reconciled to `config.json`);\n  `load_config()` round-trips the staged config; quality gates green.\n- **Depends on:** Step 1 (B1); **PR #233 merged to master** (B2a installs a config the Phase-A loader reads).\n- **Status:** DONE (2026-06-24)\n\n<!-- autofix-applied: 2026-06-23 -->"
+        }
+      ],
+      "title": "B2a — Certify review-deep-style + enablement plumbing",
+      "summary": "### Step B2: B2a — Certify review-deep-style + enablement plumbing\n- **Problem:** Add a certification helper that turns a B1 `bakeoff` report for `review-deep-style`\n  into a shippable PASS / \"do-not-enable\" verdict, stage the enable config at the Phase-A canonical\n  path (`~/.switchboard/config.json`), reconcile the stale `offload-config.json` references the\n  Phase-A rename left in the README + installer scripts, and add an automated test proving the\n  `run_shadow` kill signal fires on injected disagreement (`disagreement_rate > 0.20 → kill=True`).\n- **Type:** code\n- **Issue:** #236\n- **Flags:** --reviewers code\n- **Produces:** certification helper + staged enable config (`review-deep-style: true`); updated\n  `switchboard/README.md` + `scripts/start-offload.ps1` (+ `install-offload-icon.ps1` /\n  `offload-config.template.json` / test fixtures as the grep requires); a new injected-disagreement\n  auto-revert test.\n- **Done when:** the cert helper emits a deterministic PASS/do-not-enable verdict from a B1 report;\n  the injected-disagreement test asserts `kill=True`; `grep -ri offload-config.json switchboard/`\n  returns only intentional/historical references (all live paths reconciled to `config.json`);\n  `load_config()` round-trips the staged config; quality gates green.\n- **Depends on:** Step 1 (B1); **PR #233 merged to master** (B2a installs a config the Phase-A loader reads).\n- **Status:** DONE (2026-06-24)\n\n<!-- autofix-applied: 2026-06-23 -->",
+      "acceptance": "the cert helper emits a deterministic PASS/do-not-enable verdict from a B1 report;",
+      "kind": "task",
+      "status": "done",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "Step 1 (B1)",
+        "**PR #233 merged to master** (B2a installs a config the Phase-A loader reads)."
+      ],
+      "write_paths": null,
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "code",
+      "flags": "--reviewers code",
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "2cebfeed0f7e362258119e37bb20f99ef5a3b24e7dd0fc6a48a8ea1206bdfde4",
+      "heading": "### Step B2: B2a — Certify review-deep-style + enablement plumbing"
+    },
+    {
+      "work_id": "work_703dd1bce761b14e5863b2b9eb8577c85ff1516d8f8a6af528fedcf999fbaa63",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 325,
+          "line_end": 348,
+          "excerpt": "### Step B3: B2b — Live certify-and-enable smoke (operator)\n- **Problem:** With the local endpoint up, run the bake-off live for `review-deep-style`, record the\n  real candidate outputs back into B1's fixtures, then either enable the slice (if certified) or\n  record a shippable \"do not enable\" result. Confirm the live offload behaves: Style runs local\n  while Claude still gates, and the kill signal fires on injected disagreement.\n- **Type:** operator\n- **Issue:** #237\n- **Done when (operator confirms each):**\n  1. WSL2 llama-swap `general-35b` is up on `localhost:8080` with the keep-alive holding the relay;\n     `python -m switchboard` live smoke reaches it.\n  2. `python -m switchboard bakeoff --suite review-deep-style --live` produces a report; the real\n     candidate outputs are committed as the recorded fixture.\n  3. If certified: the enable config is installed at `~/.switchboard/config.json` and\n     `python -m switchboard config` reports `review-deep-style` **ON** (effect-based check, not the\n     file's mere presence).\n  4. A real `review-deep` run over a sample diff uses the **local** model for the Style lens only\n     (a `verdict`, not a `defer`) while the aggregator's pass/fail stays a Claude judgment.\n  5. `run_shadow` auto-revert kill signal **fires** on an injected-disagreement run (`kill=True`).\n  6. A \"do not enable\" certification is recorded as a valid shippable outcome if the slice fails.\n- **Depends on:** Step 2 (B2a); a reliable local endpoint (gate (d)). *(Set `max_tokens` ≥ 2000 in the live\n  config — general-35b is a reasoning model; the 800 default truncates. This is the one always-on/\n  event-driven surface in Phase B; this step is its end-to-end observation gate.)*\n\n<!-- autofix-applied: 2026-06-23 -->"
+        }
+      ],
+      "title": "B2b — Live certify-and-enable smoke (operator)",
+      "summary": "### Step B3: B2b — Live certify-and-enable smoke (operator)\n- **Problem:** With the local endpoint up, run the bake-off live for `review-deep-style`, record the\n  real candidate outputs back into B1's fixtures, then either enable the slice (if certified) or\n  record a shippable \"do not enable\" result. Confirm the live offload behaves: Style runs local\n  while Claude still gates, and the kill signal fires on injected disagreement.\n- **Type:** operator\n- **Issue:** #237\n- **Done when (operator confirms each):**\n  1. WSL2 llama-swap `general-35b` is up on `localhost:8080` with the keep-alive holding the relay;\n     `python -m switchboard` live smoke reaches it.\n  2. `python -m switchboard bakeoff --suite review-deep-style --live` produces a report; the real\n     candidate outputs are committed as the recorded fixture.\n  3. If certified: the enable config is installed at `~/.switchboard/config.json` and\n     `python -m switchboard config` reports `review-deep-style` **ON** (effect-based check, not the\n     file's mere presence).\n  4. A real `review-deep` run over a sample diff uses the **local** model for the Style lens only\n     (a `verdict`, not a `defer`) while the aggregator's pass/fail stays a Claude judgment.\n  5. `run_shadow` auto-revert kill signal **fires** on an injected-disagreement run (`kill=True`).\n  6. A \"do not enable\" certification is recorded as a valid shippable outcome if the slice fails.\n- **Depends on:** Step 2 (B2a); a reliable local endpoint (gate (d)). *(Set `max_tokens` ≥ 2000 in the live\n  config — general-35b is a reasoning model; the 800 default truncates. This is the one always-on/\n  event-driven surface in Phase B; this step is its end-to-end observation gate.)*\n\n<!-- autofix-applied: 2026-06-23 -->",
+      "acceptance": null,
+      "kind": "task",
+      "status": "unknown",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "Step 2 (B2a)",
+        "a reliable local endpoint (gate (d)). *(Set `max_tokens` ≥ 2000 in the live"
+      ],
+      "write_paths": null,
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "operator",
+      "flags": null,
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "70ab4b46fae23fcc1cb5489255a598838b9c7fcf7b396fb3e2aac292797edd0c",
+      "heading": "### Step B3: B2b — Live certify-and-enable smoke (operator)"
+    },
+    {
+      "work_id": "work_bf228d4be203a974a11c2839218262a1191edf62fc967f4d86aa8db2c9cc6647",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 349,
+          "line_end": 398,
+          "excerpt": "### Step B4: B3 — Effort-tier the judge slices (optional, orthogonal)\n- **Problem:** Add an `effort` policy dimension to the offload config (a first-class verb alongside\n  the existing `enabled_call_sites`), and a B1 bake-off arm comparing `effort:low` vs `model:haiku`\n  on the judge slices. Per code-quality one-source-of-truth + grep-all-consumers discipline, adding\n  a config field auto-widens `ALLOWED_TOP_LEVEL_FIELDS` (derived from `fields()`) — so the\n  tier-offload producer, its sample config, and the round-trip test must move in lockstep. Honest\n  scope: `effort` is consumed by Claude-side sub-agent dispatch, not switchboard's local client, so\n  this step delivers the dimension + measurement + a recommendation, not a live consumer.\n- **Type:** code\n- **Issue:** #238\n- **Flags:** --reviewers code\n- **Produces:** an `effort` field on `SwitchboardConfig`; updated `tier-offload` sample config +\n  inventory + `test_sample_config_loads.py` round-trip; a bake-off effort-vs-model arm in the B1\n  report; a recorded recommendation.\n- **Done when:** the config accepts and round-trips an `effort` verb (with `ALLOWED_TOP_LEVEL_FIELDS`\n  asserted to include it via the auto-derivation, not a hardcoded list); the tier-offload round-trip\n  test passes with the new field; the bake-off reports the effort-vs-model arm; a recommendation is\n  recorded; quality gates green.\n- **Depends on:** Step 1 (B1); Step 2 (B2a) (config surface). *Optional — may be deferred without blocking Steps 1–3 (B1/B2); run `/build-phase ... --steps 1,2,3` to exclude it from the default build range.*\n- **Status:** DONE (2026-06-24)\n\n### Operator surfaces on that same substrate\n\n**In:** `inspect --json`, config + health + per-site effective model, stable bakeoff artifacts,\nendpoint-launcher reconciliation, and observatory proof handoff. **Out:** making\nlocal verdicts gates, auto-enabling sites, auto-starting WSL from a read-only view, or inventing\ncall-site evidence inside switchboard.\n\n| File | Change Ty"
+        }
+      ],
+      "title": "B3 — Effort-tier the judge slices (optional, orthogonal)",
+      "summary": "### Step B4: B3 — Effort-tier the judge slices (optional, orthogonal)\n- **Problem:** Add an `effort` policy dimension to the offload config (a first-class verb alongside\n  the existing `enabled_call_sites`), and a B1 bake-off arm comparing `effort:low` vs `model:haiku`\n  on the judge slices. Per code-quality one-source-of-truth + grep-all-consumers discipline, adding\n  a config field auto-widens `ALLOWED_TOP_LEVEL_FIELDS` (derived from `fields()`) — so the\n  tier-offload producer, its sample config, and the round-trip test must move in lockstep. Honest\n  scope: `effort` is consumed by Claude-side sub-agent dispatch, not switchboard's local client, so\n  this step delivers the dimension + measurement + a recommendation, not a live consumer.\n- **Type:** code\n- **Issue:** #238\n- **Flags:** --reviewers code\n- **Produces:** an `effort` field on `SwitchboardConfig`; updated `tier-offload` sample config +\n  inventory + `test_sample_config_loads.py` round-trip; a bake-off effort-vs-model arm in the B1\n  report; a recorded recommendation.\n- **Done when:** the config accepts and round-trips an `effort` verb (with `ALLOWED_TOP_LEVEL_FIELDS`\n  asserted to include it via the auto-derivation, not a hardcoded list); the tier-offload round-trip\n  test passes with the new field; the bake-off reports the effort-vs-model arm; a recommendation is\n  recorded; quality gates green.\n- **Depends on:** Step 1 (B1); Step 2 (B2a) (config surface). *Optional — may be deferred without blocking Steps 1–3 (B1/B2); run `/build-phase ... --steps 1,2,3` to exclude it from the default build range.*\n- **Status:** DONE (2026-06-24)\n\n### Operator surfaces on that same substrate\n\n**In:** `inspect --json`, config + health + per-site effective model, stable bakeoff artifacts,\nendpoint-launcher reconciliation, and observatory proof handoff. **Out:** making\nlocal verdicts gates, auto-enabling sites, auto-starting WSL from a read-only view, or inventing\ncall-site evidence inside switchboard.\n\n| File | Change Ty",
+      "acceptance": "the config accepts and round-trips an `effort` verb (with `ALLOWED_TOP_LEVEL_FIELDS`",
+      "kind": "task",
+      "status": "done",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "Step 1 (B1)",
+        "Step 2 (B2a) (config surface). *Optional — may be deferred without blocking Steps 1–3 (B1/B2)",
+        "3` to exclude it from the default build range.*"
+      ],
+      "write_paths": null,
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "code",
+      "flags": "--reviewers code",
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "3f308b52319eb423a40c34273398ad8e9ae0aac73489b4a8226d29d0f395227a",
+      "heading": "### Step B4: B3 — Effort-tier the judge slices (optional, orthogonal)"
+    },
+    {
+      "work_id": "work_9cbe114a2e17cf2ffea8dd7ca87a07cfea90ce748d7a9e45f23b55f9d3c3c4d5",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 399,
+          "line_end": 412,
+          "excerpt": "### Step O70: Reconcile the endpoint-launcher worktree\n- **Status:** DONE (2026-08-09; retained launcher and installer prerequisite\n  smokes pass without touching the service, endpoint, config, or Desktop)\n- **Problem:** Inspect and merge/close the active `switchboard-endpoint-launcher` work before\n  deciding whether `start-offload` exists; remove stale switchboard docs/scripts only if that work\n  is abandoned. Registry changes remain owned by the dev-observatory plan.\n- **Type:** code\n- **Issue:** #\n- **Flags:** --reviewers code\n- **Files:** `switchboard/CLAUDE.md`, `switchboard/README.md`, `switchboard/scripts/`\n- **Produces:** one authoritative launcher disposition\n- **Done when:** CLAUDE/README/scripts agree and the retained launcher script passes its own smoke\n- **Depends on:** none\n"
+        }
+      ],
+      "title": "Reconcile the endpoint-launcher worktree",
+      "summary": "### Step O70: Reconcile the endpoint-launcher worktree\n- **Status:** DONE (2026-08-09; retained launcher and installer prerequisite\n  smokes pass without touching the service, endpoint, config, or Desktop)\n- **Problem:** Inspect and merge/close the active `switchboard-endpoint-launcher` work before\n  deciding whether `start-offload` exists; remove stale switchboard docs/scripts only if that work\n  is abandoned. Registry changes remain owned by the dev-observatory plan.\n- **Type:** code\n- **Issue:** #\n- **Flags:** --reviewers code\n- **Files:** `switchboard/CLAUDE.md`, `switchboard/README.md`, `switchboard/scripts/`\n- **Produces:** one authoritative launcher disposition\n- **Done when:** CLAUDE/README/scripts agree and the retained launcher script passes its own smoke\n- **Depends on:** none\n",
+      "acceptance": "CLAUDE/README/scripts agree and the retained launcher script passes its own smoke",
+      "kind": "task",
+      "status": "done",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "none"
+      ],
+      "write_paths": [
+        "`switchboard/CLAUDE.md`",
+        "`switchboard/README.md`",
+        "`switchboard/scripts/`"
+      ],
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "code",
+      "flags": "--reviewers code",
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "c1526e9944df6d1468ff0ed63916a77fdab164ba25817af890cb136ab8954a89",
+      "heading": "### Step O70: Reconcile the endpoint-launcher worktree"
+    },
+    {
+      "work_id": "work_69413e2364e199bd5967ea4aee34e8b2bb2fa87d12c6026b333b262ec4141c3b",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 413,
+          "line_end": 427,
+          "excerpt": "### Step O71: Add inspect JSON\n- **Status:** DONE (2026-08-09; fixture coverage distinguishes absent, invalid,\n  inactive, active-offline, and active-online states)\n- **Problem:** Combine validated config and bounded health into a stable report with effective model\n  per site, source, enabled/disabled state, effort hint, endpoint status, and limitations.\n- **Type:** code\n- **Issue:** #\n- **Flags:** --reviewers deep --isolation worktree\n- **Files:** `switchboard/switchboard/cli.py`, `switchboard/switchboard/config.py`,\n  `switchboard/switchboard/health.py`, `switchboard/tests/test_cli.py`,\n  `switchboard/tests/test_health.py`\n- **Produces:** inspect CLI, typed report, tests\n- **Done when:** absent, invalid, inactive, active-offline, and active-online configs are distinct\n- **Depends on:** 70\n"
+        }
+      ],
+      "title": "Add inspect JSON",
+      "summary": "### Step O71: Add inspect JSON\n- **Status:** DONE (2026-08-09; fixture coverage distinguishes absent, invalid,\n  inactive, active-offline, and active-online states)\n- **Problem:** Combine validated config and bounded health into a stable report with effective model\n  per site, source, enabled/disabled state, effort hint, endpoint status, and limitations.\n- **Type:** code\n- **Issue:** #\n- **Flags:** --reviewers deep --isolation worktree\n- **Files:** `switchboard/switchboard/cli.py`, `switchboard/switchboard/config.py`,\n  `switchboard/switchboard/health.py`, `switchboard/tests/test_cli.py`,\n  `switchboard/tests/test_health.py`\n- **Produces:** inspect CLI, typed report, tests\n- **Done when:** absent, invalid, inactive, active-offline, and active-online configs are distinct\n- **Depends on:** 70\n",
+      "acceptance": "absent, invalid, inactive, active-offline, and active-online configs are distinct",
+      "kind": "task",
+      "status": "done",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "70"
+      ],
+      "write_paths": [
+        "`switchboard/switchboard/cli.py`",
+        "`switchboard/switchboard/config.py`"
+      ],
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "code",
+      "flags": "--reviewers deep --isolation worktree",
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "d7b555f5680613db1455f3f26c385c269ba461af26a96a3ed49af9162d28d9d6",
+      "heading": "### Step O71: Add inspect JSON"
+    },
+    {
+      "work_id": "work_fd2751e4ca801e66079d2a90ddc1d04b75e3259baaaecbb1afde053f410dc71e",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 428,
+          "line_end": 443,
+          "excerpt": "### Step O72: Publish the complete observatory contract\n- **Status:** DONE (2026-08-09; versioned contract/schema and drift tests are\n  covered by the full Switchboard suite)\n- **Problem:** Export a versioned fixture/schema covering every config field (including `effort`),\n  config filename/precedence, defaults (`coder-30b`), validation, and inspect states. This closes the\n  current drift where dev-observatory reads a different filename/default and omits `effort`.\n- **Type:** code\n- **Issue:** #\n- **Flags:** --reviewers deep --isolation worktree\n- **Files:** `switchboard/switchboard/config.py`, `switchboard/switchboard/cli.py`,\n  `switchboard/tests/test_config.py`, `switchboard/tests/test_cli.py`,\n  `switchboard/docs/observatory-contract.json`, `switchboard/docs/observatory-contract.md`\n- **Produces:** cross-package contract fixture and schema\n- **Done when:** changing any field/default/path without updating the fixture fails switchboard tests\n- **Depends on:** 71\n"
+        }
+      ],
+      "title": "Publish the complete observatory contract",
+      "summary": "### Step O72: Publish the complete observatory contract\n- **Status:** DONE (2026-08-09; versioned contract/schema and drift tests are\n  covered by the full Switchboard suite)\n- **Problem:** Export a versioned fixture/schema covering every config field (including `effort`),\n  config filename/precedence, defaults (`coder-30b`), validation, and inspect states. This closes the\n  current drift where dev-observatory reads a different filename/default and omits `effort`.\n- **Type:** code\n- **Issue:** #\n- **Flags:** --reviewers deep --isolation worktree\n- **Files:** `switchboard/switchboard/config.py`, `switchboard/switchboard/cli.py`,\n  `switchboard/tests/test_config.py`, `switchboard/tests/test_cli.py`,\n  `switchboard/docs/observatory-contract.json`, `switchboard/docs/observatory-contract.md`\n- **Produces:** cross-package contract fixture and schema\n- **Done when:** changing any field/default/path without updating the fixture fails switchboard tests\n- **Depends on:** 71\n",
+      "acceptance": "changing any field/default/path without updating the fixture fails switchboard tests",
+      "kind": "task",
+      "status": "done",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "71"
+      ],
+      "write_paths": [
+        "`switchboard/switchboard/config.py`",
+        "`switchboard/switchboard/cli.py`"
+      ],
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "code",
+      "flags": "--reviewers deep --isolation worktree",
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "2e7a2e064d9dcf44f23a99c11c3006cce65a96961e7cdac72965f3d44e69a604",
+      "heading": "### Step O72: Publish the complete observatory contract"
+    },
+    {
+      "work_id": "work_c9fb03ed5e3e87c2ed8151a2b242424c1cdea43aa04aa752fdfe97fdd25de83f",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 444,
+          "line_end": 458,
+          "excerpt": "### Step O73: Curate operator documentation and bakeoff output\n- **Status:** DONE (2026-08-09; documented roles and stable bakeoff output\n  verified by focused and full tests)\n- **Problem:** Explain inspect versus config versus bakeoff, ensure bakeoff output is a stable\n  artifact consumable by observatory, and document the Step-70 launcher disposition. Registry and\n  main/all-verbs curation remain owned by the dev-observatory plan.\n- **Type:** code\n- **Issue:** #\n- **Flags:** --reviewers code\n- **Files:** `switchboard/switchboard/bakeoff.py`, `switchboard/switchboard/cli.py`,\n  `switchboard/tests/test_bakeoff.py`, `switchboard/README.md`, `switchboard/CLAUDE.md`\n- **Produces:** stable report artifact and docs\n- **Done when:** inspect/config/bakeoff roles and launcher disposition are unambiguous\n- **Depends on:** 70, 72\n"
+        }
+      ],
+      "title": "Curate operator documentation and bakeoff output",
+      "summary": "### Step O73: Curate operator documentation and bakeoff output\n- **Status:** DONE (2026-08-09; documented roles and stable bakeoff output\n  verified by focused and full tests)\n- **Problem:** Explain inspect versus config versus bakeoff, ensure bakeoff output is a stable\n  artifact consumable by observatory, and document the Step-70 launcher disposition. Registry and\n  main/all-verbs curation remain owned by the dev-observatory plan.\n- **Type:** code\n- **Issue:** #\n- **Flags:** --reviewers code\n- **Files:** `switchboard/switchboard/bakeoff.py`, `switchboard/switchboard/cli.py`,\n  `switchboard/tests/test_bakeoff.py`, `switchboard/README.md`, `switchboard/CLAUDE.md`\n- **Produces:** stable report artifact and docs\n- **Done when:** inspect/config/bakeoff roles and launcher disposition are unambiguous\n- **Depends on:** 70, 72\n",
+      "acceptance": "inspect/config/bakeoff roles and launcher disposition are unambiguous",
+      "kind": "task",
+      "status": "done",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "70",
+        "72"
+      ],
+      "write_paths": [
+        "`switchboard/switchboard/bakeoff.py`",
+        "`switchboard/switchboard/cli.py`"
+      ],
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "code",
+      "flags": "--reviewers code",
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "5a9cb969bd5f32d897df99a7e93b42cc36bd29a2e413979e435f93a6d59e87ee",
+      "heading": "### Step O73: Curate operator documentation and bakeoff output"
+    },
+    {
+      "work_id": "work_d8e3e17b0a896228181f7ed0dd21e8d929ee2b9a087f00159536fdcc82408440",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 459,
+          "line_end": 550,
+          "excerpt": "### Step O74: Real routing UAT\n- **Problem:** Inspect inert and enabled configs, check endpoint-down/up states, run the frozen\n  bakeoff, and if retained, start/stop offload through the launcher.\n- **Type:** operator\n- **Issue:** #\n- **Produces:** operator evidence only\n- **Done when:** inspect distinguishes config, endpoint, and certification state; bakeoff runs; any\n  retained launcher starts and tears down cleanly without claiming the local model owns a gate\n- **Depends on:** 73\n\n### External <friend-project> contribution (held separate ownership)\n\nTwo contributions to <friend-project> that complete the Switchboard vision (Phase 1 shipped the offload core\nin `coding-root`):\n\n- **(A) A model-attribution VIEWER** — a bundled <friend-project> plugin that answers *\"what model is each\n  session / sub-agent using, and what's it costing?\"* across the canvas. Reuses <friend-project>'s existing\n  `cc-quota` (rate limits + context window) and `telemetry:hud` (cost-by-model) and adds the missing\n  piece: **per-session model attribution**. Read-only, additive, degrades gracefully where there's\n  no local model / no `nvidia-smi`. Ships independently of (B).\n- **(B) A per-session model/token OVERRIDE** — a <friend-project> *core* extension letting a session (or a\n  spawned \"hand\") declare its own model and/or auth token instead of inheriting the global CLI\n  template + global secrets. This is the convergence point: it unlocks both per-hand local-model\n  routing AND the parked multi-token quota-spreading idea. Higher risk (touches session launch) —\n  paired with a startup validation guard.\n\nTriggering context: Phase 1's offload is invisible without the viewer (\"I don't know what's firing\nunder the hood\"), and per-hand routing needs the override. Both were specced as prose in\n`docs/switchboard-plan.md` § Phase 2; this promotes them to a buildable plan grounded in <friend-project>'s\nactual code.\n\n**In:**\n- (A) `src/plugins/model-attribution/` bundled plugin + its two registrations; a small server-side\n  addition to **expose per-sess"
+        }
+      ],
+      "title": "Real routing UAT",
+      "summary": "### Step O74: Real routing UAT\n- **Problem:** Inspect inert and enabled configs, check endpoint-down/up states, run the frozen\n  bakeoff, and if retained, start/stop offload through the launcher.\n- **Type:** operator\n- **Issue:** #\n- **Produces:** operator evidence only\n- **Done when:** inspect distinguishes config, endpoint, and certification state; bakeoff runs; any\n  retained launcher starts and tears down cleanly without claiming the local model owns a gate\n- **Depends on:** 73\n\n### External <friend-project> contribution (held separate ownership)\n\nTwo contributions to <friend-project> that complete the Switchboard vision (Phase 1 shipped the offload core\nin `coding-root`):\n\n- **(A) A model-attribution VIEWER** — a bundled <friend-project> plugin that answers *\"what model is each\n  session / sub-agent using, and what's it costing?\"* across the canvas. Reuses <friend-project>'s existing\n  `cc-quota` (rate limits + context window) and `telemetry:hud` (cost-by-model) and adds the missing\n  piece: **per-session model attribution**. Read-only, additive, degrades gracefully where there's\n  no local model / no `nvidia-smi`. Ships independently of (B).\n- **(B) A per-session model/token OVERRIDE** — a <friend-project> *core* extension letting a session (or a\n  spawned \"hand\") declare its own model and/or auth token instead of inheriting the global CLI\n  template + global secrets. This is the convergence point: it unlocks both per-hand local-model\n  routing AND the parked multi-token quota-spreading idea. Higher risk (touches session launch) —\n  paired with a startup validation guard.\n\nTriggering context: Phase 1's offload is invisible without the viewer (\"I don't know what's firing\nunder the hood\"), and per-hand routing needs the override. Both were specced as prose in\n`docs/switchboard-plan.md` § Phase 2; this promotes them to a buildable plan grounded in <friend-project>'s\nactual code.\n\n**In:**\n- (A) `src/plugins/model-attribution/` bundled plugin + its two registrations; a small server-side\n  addition to **expose per-sess",
+      "acceptance": "inspect distinguishes config, endpoint, and certification state; bakeoff runs; any",
+      "kind": "task",
+      "status": "unknown",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "73"
+      ],
+      "write_paths": null,
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "operator",
+      "flags": null,
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "c536ff33f30ee6b6eece49b1a2ae014079ec35b1d433b357aad0c1ce4d7b3092",
+      "heading": "### Step O74: Real routing UAT"
+    },
+    {
+      "work_id": "work_70f5787f377a4e77dd4b9df994a6857f43ab09e7092f6fa55e2c63fa5ef096ee",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 551,
+          "line_end": 567,
+          "excerpt": "### Step P1: Spike — per-session + sub-agent model attribution feasibility (D6 Tier A/B)\n- **Problem:** Confirm the cheapest correct source for the viewer's model data. (a) Verify\n  `context-usage.ts` `ContextData.model` gives the live per-session model and decide how to surface it\n  (endpoint vs session-snapshot field) — **Tier A**. (b) Determine whether sub-agent transcripts\n  (`agent-*.jsonl`, or the main `<conversationId>.jsonl` assistant turns) record model per-turn so a\n  plugin/server can attribute **per-sub-agent** model — **Tier B** — or whether that's deferred.\n  Capture real transcript shapes (substrate-test discipline). Output: a findings doc pinning what the\n  viewer surfaces in Phase 2 vs later.\n- **Type:** code\n- **Issue:** #209\n- **Flags:** --reviewers code\n- **Produces:** `docs/investigations/switchboard-<friend-project>-attribution.md` (in coding-root) + any throwaway probe\n- **Done when:** Tier A's surface is decided with evidence (model is/ isn't reliably in context-usage);\n  Tier B is decided (transcript model-per-turn confirmed → in scope, or deferred with the reason)\n- **Depends on:** none\n- **Status:** DONE (2026-06-19) — Tier A IN SCOPE (use transcript `message.model`, cheaper than the context-usage sidecar); Tier B DEFERRED (no `agent-*.jsonl`, no `isSidechain` records — per-sub-agent model not recoverable). See `docs/investigations/switchboard-<friend-project>-attribution.md`.\n"
+        }
+      ],
+      "title": "Spike — per-session + sub-agent model attribution feasibility (D6 Tier A/B)",
+      "summary": "### Step P1: Spike — per-session + sub-agent model attribution feasibility (D6 Tier A/B)\n- **Problem:** Confirm the cheapest correct source for the viewer's model data. (a) Verify\n  `context-usage.ts` `ContextData.model` gives the live per-session model and decide how to surface it\n  (endpoint vs session-snapshot field) — **Tier A**. (b) Determine whether sub-agent transcripts\n  (`agent-*.jsonl`, or the main `<conversationId>.jsonl` assistant turns) record model per-turn so a\n  plugin/server can attribute **per-sub-agent** model — **Tier B** — or whether that's deferred.\n  Capture real transcript shapes (substrate-test discipline). Output: a findings doc pinning what the\n  viewer surfaces in Phase 2 vs later.\n- **Type:** code\n- **Issue:** #209\n- **Flags:** --reviewers code\n- **Produces:** `docs/investigations/switchboard-<friend-project>-attribution.md` (in coding-root) + any throwaway probe\n- **Done when:** Tier A's surface is decided with evidence (model is/ isn't reliably in context-usage);\n  Tier B is decided (transcript model-per-turn confirmed → in scope, or deferred with the reason)\n- **Depends on:** none\n- **Status:** DONE (2026-06-19) — Tier A IN SCOPE (use transcript `message.model`, cheaper than the context-usage sidecar); Tier B DEFERRED (no `agent-*.jsonl`, no `isSidechain` records — per-sub-agent model not recoverable). See `docs/investigations/switchboard-<friend-project>-attribution.md`.\n",
+      "acceptance": "Tier A's surface is decided with evidence (model is/ isn't reliably in context-usage);",
+      "kind": "task",
+      "status": "done",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "none"
+      ],
+      "write_paths": null,
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "code",
+      "flags": "--reviewers code",
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "fe3a1cb3b96a7f4552ebfa3544706fcf844dfa98251d13a2e8a125bacfac01e8",
+      "heading": "### Step P1: Spike — per-session + sub-agent model attribution feasibility (D6 Tier A/B)"
+    },
+    {
+      "work_id": "work_798c0dca53b9c8439d61b3fc98003dcf7532cebd0a999733bbd4fb1cf9cc55b3",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 568,
+          "line_end": 580,
+          "excerpt": "### Step P2: Server — expose per-session model (Tier A)\n- **Problem:** Surface the model `context-usage` already extracts so a plugin can read per-session\n  model. Per Step 1's decision: add it to the session snapshot the plugin reads and/or a\n  `GET /api/sessions/:name/model` (reuse existing context-usage plumbing; don't re-parse). Keep it\n  read-only and cheap.\n- **Type:** code\n- **Issue:** #210\n- **Flags:** --reviewers code\n- **Produces:** the server surface + a vitest unit test (mock the context-usage source)\n- **Done when:** a plugin-reachable read returns the current per-session model; `tsc` + vitest green\n- **Depends on:** 1\n- **Status:** DONE (2026-06-19) — <friend-project> `switchboard-viewer` @ 72720cf4. Sourced from transcript `message.model` (per Step 1, cheaper than context-usage): `readLatestModel` in transcript-parser.ts + `model` on `/api/state` + `GET /api/sessions/:name/model`. tsc app clean, 23 new/related vitest pass (22 full-suite fails are pre-existing Windows-env, verified by baseline stash).\n"
+        }
+      ],
+      "title": "Server — expose per-session model (Tier A)",
+      "summary": "### Step P2: Server — expose per-session model (Tier A)\n- **Problem:** Surface the model `context-usage` already extracts so a plugin can read per-session\n  model. Per Step 1's decision: add it to the session snapshot the plugin reads and/or a\n  `GET /api/sessions/:name/model` (reuse existing context-usage plumbing; don't re-parse). Keep it\n  read-only and cheap.\n- **Type:** code\n- **Issue:** #210\n- **Flags:** --reviewers code\n- **Produces:** the server surface + a vitest unit test (mock the context-usage source)\n- **Done when:** a plugin-reachable read returns the current per-session model; `tsc` + vitest green\n- **Depends on:** 1\n- **Status:** DONE (2026-06-19) — <friend-project> `switchboard-viewer` @ 72720cf4. Sourced from transcript `message.model` (per Step 1, cheaper than context-usage): `readLatestModel` in transcript-parser.ts + `model` on `/api/state` + `GET /api/sessions/:name/model`. tsc app clean, 23 new/related vitest pass (22 full-suite fails are pre-existing Windows-env, verified by baseline stash).\n",
+      "acceptance": "a plugin-reachable read returns the current per-session model; `tsc` + vitest green",
+      "kind": "task",
+      "status": "done",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "1"
+      ],
+      "write_paths": null,
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "code",
+      "flags": "--reviewers code",
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "ea5b56da6fe10aab89993722cd7825ed907d09ffdbb9e81428b78201da3e5838",
+      "heading": "### Step P2: Server — expose per-session model (Tier A)"
+    },
+    {
+      "work_id": "work_04ef7b3b6c58c30c9b12a085cffa72d398c057ccb46f331a0bb75bfc65c75cd1",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 581,
+          "line_end": 595,
+          "excerpt": "### Step P3: Viewer bundled plugin — the model-attribution widget\n- **Problem:** Build `src/plugins/model-attribution/` (manifest + `activate` + widget). The widget\n  reads `/api/state` (sessions + conversation ids), the Step-2 per-session model, `/api/cc-quota`\n  (rate limits), and subscribes to `telemetry:hud` (`cost.byModel`), rendering a per-session\n  model/cost/quota view. Optional GPU/loaded-model panel that **degrades** when `nvidia-smi`/ollama\n  are absent. Follow <friend-project> conventions (`apiFetch`/`api.http`, no bare `fetch`).\n- **Type:** code\n- **Issue:** #211\n- **Flags:** --reviewers code\n- **Produces:** the plugin package (package.json + index.tsx + widget component) + a vitest component test\n- **Done when:** the widget renders sessions with their model + quota from real API shapes (test with\n  stubbed responses); `tsc` + eslint + vitest green\n- **Depends on:** 2\n- **Status:** DONE (2026-06-19) — <friend-project> `switchboard-viewer` @ c571c4af. `src/plugins/model-attribution/` bundled plugin (manifest + activate + ModelAttributionWidget): per-session model list (null→\"—\"), cc-quota 5h/7d headroom, fleet `byModel` chips, GPU-degraded placeholder. tsc clean, eslint 0/0 (in-scope), 2 component tests pass. Not yet registered (Step 4).\n"
+        }
+      ],
+      "title": "Viewer bundled plugin — the model-attribution widget",
+      "summary": "### Step P3: Viewer bundled plugin — the model-attribution widget\n- **Problem:** Build `src/plugins/model-attribution/` (manifest + `activate` + widget). The widget\n  reads `/api/state` (sessions + conversation ids), the Step-2 per-session model, `/api/cc-quota`\n  (rate limits), and subscribes to `telemetry:hud` (`cost.byModel`), rendering a per-session\n  model/cost/quota view. Optional GPU/loaded-model panel that **degrades** when `nvidia-smi`/ollama\n  are absent. Follow <friend-project> conventions (`apiFetch`/`api.http`, no bare `fetch`).\n- **Type:** code\n- **Issue:** #211\n- **Flags:** --reviewers code\n- **Produces:** the plugin package (package.json + index.tsx + widget component) + a vitest component test\n- **Done when:** the widget renders sessions with their model + quota from real API shapes (test with\n  stubbed responses); `tsc` + eslint + vitest green\n- **Depends on:** 2\n- **Status:** DONE (2026-06-19) — <friend-project> `switchboard-viewer` @ c571c4af. `src/plugins/model-attribution/` bundled plugin (manifest + activate + ModelAttributionWidget): per-session model list (null→\"—\"), cc-quota 5h/7d headroom, fleet `byModel` chips, GPU-degraded placeholder. tsc clean, eslint 0/0 (in-scope), 2 component tests pass. Not yet registered (Step 4).\n",
+      "acceptance": "the widget renders sessions with their model + quota from real API shapes (test with",
+      "kind": "task",
+      "status": "done",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "2"
+      ],
+      "write_paths": null,
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "code",
+      "flags": "--reviewers code",
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "aa3706aa0ccc7e2cd325877ed787bb16839680aa338b4a1aadbe1fba8b1b262a",
+      "heading": "### Step P3: Viewer bundled plugin — the model-attribution widget"
+    },
+    {
+      "work_id": "work_d43d50e0ed2604e31e81288046620fc169735a429c2ab390aeb7bafb24265741",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 596,
+          "line_end": 611,
+          "excerpt": "### Step P4: Register + UI smoke gate\n- **Problem:** Register the plugin in `src/core/pluginHost/bundled.ts` (`BUNDLED_PLUGINS`) +\n  `src/server/api/builtinPluginManifests.ts` (`BUILTIN_PLUGIN_PKGS`). Then a **smoke gate**: start\n  <friend-project> with `<friend-project>_FAST_SIM=1` (mock data), drop the widget on the canvas, and confirm it\n  renders the mocked sessions/models without error (Playwright screenshot or a manual check). This is\n  the producer→consumer gate (server data → plugin render) that unit tests can't see.\n- **Type:** code\n- **Issue:** #212\n- **Flags:** --reviewers code\n- **Produces:** the two registrations + a Playwright/e2e smoke (or a documented manual smoke) under <friend-project>'s `e2e/`\n- **Done when:** with `<friend-project>_FAST_SIM=1` the widget appears in the palette, drops on canvas, and\n  renders mock sessions+models with no console error; <friend-project>'s full typecheck/lint/test green.\n  **(End of Track A — this is a shippable PR.)**\n- **Depends on:** 3\n- **Status:** DONE (2026-06-19) — <friend-project> `switchboard-viewer` @ 9315c3bc. Registered in `bundled.ts` + `builtinPluginManifests.ts`; no-browser integrity test + the pre-existing `integration.test.ts` (full plugin pipeline) both pass with the new entry → it loads. Playwright e2e spec written for CI/operator; **visual render smoke deferred to Step 7** (<friend-project> e2e `spawn npx ENOENT` on this Windows box — env, not code). tsc clean, pluginHost vitest 52/52. **Track A done → PR 1 ready (opened in Step 7).**\n"
+        }
+      ],
+      "title": "Register + UI smoke gate",
+      "summary": "### Step P4: Register + UI smoke gate\n- **Problem:** Register the plugin in `src/core/pluginHost/bundled.ts` (`BUNDLED_PLUGINS`) +\n  `src/server/api/builtinPluginManifests.ts` (`BUILTIN_PLUGIN_PKGS`). Then a **smoke gate**: start\n  <friend-project> with `<friend-project>_FAST_SIM=1` (mock data), drop the widget on the canvas, and confirm it\n  renders the mocked sessions/models without error (Playwright screenshot or a manual check). This is\n  the producer→consumer gate (server data → plugin render) that unit tests can't see.\n- **Type:** code\n- **Issue:** #212\n- **Flags:** --reviewers code\n- **Produces:** the two registrations + a Playwright/e2e smoke (or a documented manual smoke) under <friend-project>'s `e2e/`\n- **Done when:** with `<friend-project>_FAST_SIM=1` the widget appears in the palette, drops on canvas, and\n  renders mock sessions+models with no console error; <friend-project>'s full typecheck/lint/test green.\n  **(End of Track A — this is a shippable PR.)**\n- **Depends on:** 3\n- **Status:** DONE (2026-06-19) — <friend-project> `switchboard-viewer` @ 9315c3bc. Registered in `bundled.ts` + `builtinPluginManifests.ts`; no-browser integrity test + the pre-existing `integration.test.ts` (full plugin pipeline) both pass with the new entry → it loads. Playwright e2e spec written for CI/operator; **visual render smoke deferred to Step 7** (<friend-project> e2e `spawn npx ENOENT` on this Windows box — env, not code). tsc clean, pluginHost vitest 52/52. **Track A done → PR 1 ready (opened in Step 7).**\n",
+      "acceptance": "with `<friend-project>_FAST_SIM=1` the widget appears in the palette, drops on canvas, and",
+      "kind": "task",
+      "status": "done",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "3"
+      ],
+      "write_paths": null,
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "code",
+      "flags": "--reviewers code",
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "9984ded9c2f275514ae7037f00fbaf36904d10c55eac55daa9e87023ae2fa494",
+      "heading": "### Step P4: Register + UI smoke gate"
+    },
+    {
+      "work_id": "work_9435441757d2260554375688846b5f7d519f8852ffcb29305b5f9326e94489e5",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 612,
+          "line_end": 627,
+          "excerpt": "### Step P5: Server — per-session model/token override (core change)\n- **Problem:** Add optional `model` and `token` to the create endpoint (`CreateSessionParams`,\n  `routes.ts:368`) and the spawn body (`routes.ts:3149`); thread them onto the `Session` type\n  (`session.ts`); make `buildAgentCommand` accept a runtime `--model` override (replacing/augmenting\n  the template's baked `--model`); and overlay a per-session secret (e.g. a session-scoped\n  `CLAUDE_CODE_OAUTH_TOKEN`) on top of the global `loadSecrets` map in the `set-environment` loop\n  (`tmux.ts:377`). Inert when unset (behaves exactly as today).\n- **Type:** code\n- **Issue:** #213\n- **Flags:** --reviewers code\n- **Produces:** the threaded override + vitest tests (override applied when set; identical to current when unset)\n- **Done when:** a session created/spawned with `model`/`token` launches with that model + that token\n  in its env; unset = byte-identical to current behavior; `tsc` + vitest green\n- **Depends on:** none (independent of Track A; can run parallel to 1–4)\n- **Status:** DONE (2026-06-19) — <friend-project> `switchboard-override` @ 10a92a47 (branched off main, independent of Track A). `model` → persisted `Session.modelOverride`, appended as `--model` in `buildAgentCommand` (last-wins, re-applied on restart). `token` → `applyTokenOverride()` overlays `CLAUDE_CODE_OAUTH_TOKEN` at spawn time only — never persisted/returned/logged (the quota-isolation case). Wired into BOTH `POST /api/sessions` and `POST /api/sessions/:name/spawn`. **Keystone \"inert when unset\" proven:** `buildAgentCommand` byte-identical when null; `applyTokenOverride` returns the SAME secrets ref when unset. 9 new vitest tests; full `typecheck` (app+e2e+test) clean; sessions/api/observability 98/98.\n"
+        }
+      ],
+      "title": "Server — per-session model/token override (core change)",
+      "summary": "### Step P5: Server — per-session model/token override (core change)\n- **Problem:** Add optional `model` and `token` to the create endpoint (`CreateSessionParams`,\n  `routes.ts:368`) and the spawn body (`routes.ts:3149`); thread them onto the `Session` type\n  (`session.ts`); make `buildAgentCommand` accept a runtime `--model` override (replacing/augmenting\n  the template's baked `--model`); and overlay a per-session secret (e.g. a session-scoped\n  `CLAUDE_CODE_OAUTH_TOKEN`) on top of the global `loadSecrets` map in the `set-environment` loop\n  (`tmux.ts:377`). Inert when unset (behaves exactly as today).\n- **Type:** code\n- **Issue:** #213\n- **Flags:** --reviewers code\n- **Produces:** the threaded override + vitest tests (override applied when set; identical to current when unset)\n- **Done when:** a session created/spawned with `model`/`token` launches with that model + that token\n  in its env; unset = byte-identical to current behavior; `tsc` + vitest green\n- **Depends on:** none (independent of Track A; can run parallel to 1–4)\n- **Status:** DONE (2026-06-19) — <friend-project> `switchboard-override` @ 10a92a47 (branched off main, independent of Track A). `model` → persisted `Session.modelOverride`, appended as `--model` in `buildAgentCommand` (last-wins, re-applied on restart). `token` → `applyTokenOverride()` overlays `CLAUDE_CODE_OAUTH_TOKEN` at spawn time only — never persisted/returned/logged (the quota-isolation case). Wired into BOTH `POST /api/sessions` and `POST /api/sessions/:name/spawn`. **Keystone \"inert when unset\" proven:** `buildAgentCommand` byte-identical when null; `applyTokenOverride` returns the SAME secrets ref when unset. 9 new vitest tests; full `typecheck` (app+e2e+test) clean; sessions/api/observability 98/98.\n",
+      "acceptance": "a session created/spawned with `model`/`token` launches with that model + that token",
+      "kind": "task",
+      "status": "done",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "none (independent of Track A",
+        "can run parallel to 1–4)"
+      ],
+      "write_paths": null,
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "code",
+      "flags": "--reviewers code",
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "82aacd7f5922cd13070a5df913bd5e04bb434a9f95134c04a7eee1221b9771b2",
+      "heading": "### Step P5: Server — per-session model/token override (core change)"
+    },
+    {
+      "work_id": "work_1672fa60d1a05d9d0e6efaa493a70af9fe344d41a075596f6c818e761c6d9345",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 628,
+          "line_end": 641,
+          "excerpt": "### Step P6: Startup validation guard for the override (security invariant)\n- **Problem:** Pair the unsafe per-session-token/model config with a launch-time invariant: validate\n  the override before `createTmuxSession` sends the command — an allowed-model list and a token\n  shape/presence check, failing closed with a stable error code (not a silent fallback). Per\n  `.claude/rules/security.md` \"pair unsafe configs with startup safety checks\". Never log token bytes.\n- **Type:** code\n- **Issue:** #214\n- **Flags:** --reviewers code\n- **Produces:** the validator + tests (rejects a disallowed model / malformed token; no token bytes logged)\n- **Done when:** a bad override is rejected at launch with a stable error; a valid one passes; no token\n  bytes appear in logs; gates green. **(End of Track B — second PR.)**\n- **Depends on:** 5\n- **Status:** DONE (2026-06-19) — <friend-project> `switchboard-override` @ 74be2a7c. `validateSessionOverride()` runs in BOTH create + spawn paths BEFORE session-dir creation / tmux send. Fail-closed with 4 stable, typed `ErrorCode`s (`OVERRIDE_MODEL_NOT_CONFIGURED|MODEL_NOT_ALLOWED|TOKEN_DISABLED|TOKEN_MALFORMED`; added to the union + HTTP_STATUS, 403/400). New `switchboard.{allowedModels[],allowTokenOverride}` config block defaults empty/false → override rejected unless explicitly enabled; no-override launches pass immediately (inert). Token shape check is **value-free** — never inspects/returns/logs the bytes; no log statement touches the token. Full `typecheck` clean; vitest sessions **106/106** (8 new guard tests incl. \"rejection message never contains the token\"). **Track B complete → PR 2 ready (opened in Step 7).**\n"
+        }
+      ],
+      "title": "Startup validation guard for the override (security invariant)",
+      "summary": "### Step P6: Startup validation guard for the override (security invariant)\n- **Problem:** Pair the unsafe per-session-token/model config with a launch-time invariant: validate\n  the override before `createTmuxSession` sends the command — an allowed-model list and a token\n  shape/presence check, failing closed with a stable error code (not a silent fallback). Per\n  `.claude/rules/security.md` \"pair unsafe configs with startup safety checks\". Never log token bytes.\n- **Type:** code\n- **Issue:** #214\n- **Flags:** --reviewers code\n- **Produces:** the validator + tests (rejects a disallowed model / malformed token; no token bytes logged)\n- **Done when:** a bad override is rejected at launch with a stable error; a valid one passes; no token\n  bytes appear in logs; gates green. **(End of Track B — second PR.)**\n- **Depends on:** 5\n- **Status:** DONE (2026-06-19) — <friend-project> `switchboard-override` @ 74be2a7c. `validateSessionOverride()` runs in BOTH create + spawn paths BEFORE session-dir creation / tmux send. Fail-closed with 4 stable, typed `ErrorCode`s (`OVERRIDE_MODEL_NOT_CONFIGURED|MODEL_NOT_ALLOWED|TOKEN_DISABLED|TOKEN_MALFORMED`; added to the union + HTTP_STATUS, 403/400). New `switchboard.{allowedModels[],allowTokenOverride}` config block defaults empty/false → override rejected unless explicitly enabled; no-override launches pass immediately (inert). Token shape check is **value-free** — never inspects/returns/logs the bytes; no log statement touches the token. Full `typecheck` clean; vitest sessions **106/106** (8 new guard tests incl. \"rejection message never contains the token\"). **Track B complete → PR 2 ready (opened in Step 7).**\n",
+      "acceptance": "a bad override is rejected at launch with a stable error; a valid one passes; no token",
+      "kind": "task",
+      "status": "done",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "5"
+      ],
+      "write_paths": null,
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "code",
+      "flags": "--reviewers code",
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "0f4f2337d19252fc87d604302d502e281781794bbba15038fc79ac8323bd40b4",
+      "heading": "### Step P6: Startup validation guard for the override (security invariant)"
+    },
+    {
+      "work_id": "work_e73584eb03711de3b709728d9e1dbb5d79d967d8d3b2b4002f535c2305e29268",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 642,
+          "line_end": 896,
+          "excerpt": "### Step P7: Operator UAT + open the PR(s)\n- **Problem:** Run <friend-project> locally (`npm run dev`, and `<friend-project>_FAST_SIM=1` for the viewer), confirm:\n  the viewer shows real per-session models + quota and degrades cleanly with no local model; a session\n  with a per-session `model`/`token` override launches correctly and an invalid one is rejected. Then\n  open the PR(s) on the <friend-project> feature branch for `<friend-owner>` to review — **viewer PR first**, then\n  the override PR. Confirm no push to `main`.\n- **Type:** operator\n- **Issue:** #215\n- **Produces:** a UAT note (what was observed) + the opened PR link(s)\n- **Done when:** operator confirms viewer + override behave on a real <friend-project> run, and the PR(s) are\n  open for the owner's review (nothing merged)\n- **Depends on:** 4, 6\n\n- **Step 1 spike** pins the data source with real transcript/context-usage shapes (substrate-test).\n- **Steps 2/5/6** are unit-tested (vitest) at the server boundary with stubbed Claude-Code sources;\n  the override's \"byte-identical when unset\" test is the keystone (the core-change safety net).\n- **Step 3** tests the widget against stubbed API shapes (no live <friend-project>).\n- **Step 4 smoke gate** is the producer→consumer check the unit tests can't see — real plugin host +\n  `<friend-project>_FAST_SIM` mock data → widget renders. Run under <friend-project>'s `e2e/` (Playwright).\n- **Step 7 operator UAT** is the only thing that proves it on a real <friend-project> + real Claude Code\n  sessions (viewer shows real models; override launches a real session correctly) before the PR.\n- The autonomous-behavior trigger does NOT fire (operator-invoked UI + launch-time config, no\n  background daemon) — so no soak phase; the UI smoke + operator UAT are the right end-to-end gates.\n\n### Proposed switchboard-tune sibling (not an active local queue)\n\n**Proposal:** https://claude.ai/code/artifact/b9d47fc6-e134-4854-9b38-de2d205506c7 (operator-facing view of this plan; see the Decision Inventory appendix for the P/D handles it exposes)\n\nFine-tunes a"
+        }
+      ],
+      "title": "Operator UAT + open the PR(s)",
+      "summary": "### Step P7: Operator UAT + open the PR(s)\n- **Problem:** Run <friend-project> locally (`npm run dev`, and `<friend-project>_FAST_SIM=1` for the viewer), confirm:\n  the viewer shows real per-session models + quota and degrades cleanly with no local model; a session\n  with a per-session `model`/`token` override launches correctly and an invalid one is rejected. Then\n  open the PR(s) on the <friend-project> feature branch for `<friend-owner>` to review — **viewer PR first**, then\n  the override PR. Confirm no push to `main`.\n- **Type:** operator\n- **Issue:** #215\n- **Produces:** a UAT note (what was observed) + the opened PR link(s)\n- **Done when:** operator confirms viewer + override behave on a real <friend-project> run, and the PR(s) are\n  open for the owner's review (nothing merged)\n- **Depends on:** 4, 6\n\n- **Step 1 spike** pins the data source with real transcript/context-usage shapes (substrate-test).\n- **Steps 2/5/6** are unit-tested (vitest) at the server boundary with stubbed Claude-Code sources;\n  the override's \"byte-identical when unset\" test is the keystone (the core-change safety net).\n- **Step 3** tests the widget against stubbed API shapes (no live <friend-project>).\n- **Step 4 smoke gate** is the producer→consumer check the unit tests can't see — real plugin host +\n  `<friend-project>_FAST_SIM` mock data → widget renders. Run under <friend-project>'s `e2e/` (Playwright).\n- **Step 7 operator UAT** is the only thing that proves it on a real <friend-project> + real Claude Code\n  sessions (viewer shows real models; override launches a real session correctly) before the PR.\n- The autonomous-behavior trigger does NOT fire (operator-invoked UI + launch-time config, no\n  background daemon) — so no soak phase; the UI smoke + operator UAT are the right end-to-end gates.\n\n### Proposed switchboard-tune sibling (not an active local queue)\n\n**Proposal:** https://claude.ai/code/artifact/b9d47fc6-e134-4854-9b38-de2d205506c7 (operator-facing view of this plan; see the Decision Inventory appendix for the P/D handles it exposes)\n\nFine-tunes a",
+      "acceptance": "operator confirms viewer + override behave on a real <friend-project> run, and the PR(s) are",
+      "kind": "task",
+      "status": "unknown",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "4",
+        "6"
+      ],
+      "write_paths": null,
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "operator",
+      "flags": null,
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "c088c4ac93ccc765420a61dfaf18a66de96b43028bd1d45540030425960f2ff6",
+      "heading": "### Step P7: Operator UAT + open the PR(s)"
+    },
+    {
+      "work_id": "work_6560766b561b24f1119b7507ccc77590be49f429c426fb468102de16bbf23e83",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 897,
+          "line_end": 906,
+          "excerpt": "### Step T1: Scaffold `switchboard-tune` and mine real judge inputs\n- **Problem:** Create the sibling uv project (WSL2/CUDA-targeted, switchboard as an editable path dep, registered in the observatory registry as owned) and implement `tune/mine_inputs.py`, which walks git history across `dev/` repos, extracts small code-style diff hunks, renders each through the **mined-case prompt shape defined in Appendix A.2** (diff plus the JSON instruction, and deliberately **no editorial summary sentence** — see the label-leak note there, which is load-bearing), dedups near-identical hunks, and writes `data/inputs.jsonl` per the Appendix A.1 schema. Mining bounds: hunks of 2-30 changed lines from `.py`/`.ts`/`.tsx`/`.js`/`.ps1` files, at most 40 hunks per source repo so no single repo dominates, skipping vendored, generated, and lockfile paths.\n- **Type:** code\n- **Issue:** #\n- **Flags:** --reviewers code --isolation worktree\n- **Produces:** `switchboard-tune/pyproject.toml`, `tune/mine_inputs.py`, `data/inputs.jsonl`, `README.md`, `CLAUDE.md` (with scrapable `## Stack` + `## Commands` blocks per the descriptor contract), and a `[[project]]` entry in `dev/.claude/observatory/registry.toml` with `slug = \"switchboard-tune\"`, `path = \"switchboard-tune\"`, `owned = true`\n- **Done when:** `uv run python -m tune.mine_inputs --limit 1200` writes at least 1,000 deduped rows; every row carries provenance; re-running is deterministic given the same repo state; the mined prompt text is built from `switchboard.client.SYSTEM_PROMPT`, not a local string\n- **Depends on:** none\n\n<!-- autofix-applied: 2026-07-28 -->"
+        }
+      ],
+      "title": "Scaffold `switchboard-tune` and mine real judge inputs",
+      "summary": "### Step T1: Scaffold `switchboard-tune` and mine real judge inputs\n- **Problem:** Create the sibling uv project (WSL2/CUDA-targeted, switchboard as an editable path dep, registered in the observatory registry as owned) and implement `tune/mine_inputs.py`, which walks git history across `dev/` repos, extracts small code-style diff hunks, renders each through the **mined-case prompt shape defined in Appendix A.2** (diff plus the JSON instruction, and deliberately **no editorial summary sentence** — see the label-leak note there, which is load-bearing), dedups near-identical hunks, and writes `data/inputs.jsonl` per the Appendix A.1 schema. Mining bounds: hunks of 2-30 changed lines from `.py`/`.ts`/`.tsx`/`.js`/`.ps1` files, at most 40 hunks per source repo so no single repo dominates, skipping vendored, generated, and lockfile paths.\n- **Type:** code\n- **Issue:** #\n- **Flags:** --reviewers code --isolation worktree\n- **Produces:** `switchboard-tune/pyproject.toml`, `tune/mine_inputs.py`, `data/inputs.jsonl`, `README.md`, `CLAUDE.md` (with scrapable `## Stack` + `## Commands` blocks per the descriptor contract), and a `[[project]]` entry in `dev/.claude/observatory/registry.toml` with `slug = \"switchboard-tune\"`, `path = \"switchboard-tune\"`, `owned = true`\n- **Done when:** `uv run python -m tune.mine_inputs --limit 1200` writes at least 1,000 deduped rows; every row carries provenance; re-running is deterministic given the same repo state; the mined prompt text is built from `switchboard.client.SYSTEM_PROMPT`, not a local string\n- **Depends on:** none\n\n<!-- autofix-applied: 2026-07-28 -->",
+      "acceptance": "`uv run python -m tune.mine_inputs --limit 1200` writes at least 1,000 deduped rows; every row carries provenance; re-running is deterministic given the same repo state; the mined prompt text is built from `switchboard.client.SYSTEM_PROMPT`, not a local string",
+      "kind": "task",
+      "status": "unknown",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "none"
+      ],
+      "write_paths": null,
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "code",
+      "flags": "--reviewers code --isolation worktree",
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "e727555058dc3edfc4fab8b7f89fa0ec0f691ef835c37a0679897ebb17ae89ed",
+      "heading": "### Step T1: Scaffold `switchboard-tune` and mine real judge inputs"
+    },
+    {
+      "work_id": "work_4ca7fd88cc306fa8e7b48c266de9f118e0ea6b0f6088eb6d35ad4d87ff7d69fa",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 907,
+          "line_end": 916,
+          "excerpt": "### Step T2: Mint teacher labels with Claude and freeze the golden set\n- **Problem:** Implement `tune/label.py` (batch `claude -p` labeling, hardened per D3: explicit `--model`, no tools, stdin for the prompt, `encoding=\"utf-8\", errors=\"replace\"`, resumable so a crash mid-batch does not restart from zero) and `tune/freeze.py` (deterministic 80/10/10 split, SHA256 manifest, refuses to overwrite an existing manifest). Label 500-2,000 mined inputs. **Near-duplicate leakage across splits is the failure mode to design against** — exact-match dedup in Step 1 does not catch a hunk that differs by a variable name, and a near-dupe spanning train and test silently inflates the tuned score.\n- **Type:** code\n- **Issue:** #\n- **Flags:** --reviewers deep --isolation worktree\n- **Produces:** `tune/label.py`, `tune/freeze.py`, `data/labeled.jsonl`, `data/golden/{train,dev,test}.jsonl`, `data/golden/MANIFEST.sha256`, `data/golden/leakage-report.json`\n- **Done when:** at least 500 labeled rows exist with the `pass`/`flag` distribution reported in the run log; the frozen splits are written; `freeze.py` exits non-zero when asked to overwrite an existing manifest; a deliberate one-byte edit to `test.jsonl` makes manifest verification fail; **and `leakage-report.json` shows zero test-split rows whose normalized-token Jaccard similarity against any train-split row exceeds 0.9** (the check runs inside `freeze.py`, before the manifest is written, and a violation is a hard non-zero exit rather than a warning)\n- **Depends on:** 1\n\n<!-- autofix-applied: 2026-07-28 -->"
+        }
+      ],
+      "title": "Mint teacher labels with Claude and freeze the golden set",
+      "summary": "### Step T2: Mint teacher labels with Claude and freeze the golden set\n- **Problem:** Implement `tune/label.py` (batch `claude -p` labeling, hardened per D3: explicit `--model`, no tools, stdin for the prompt, `encoding=\"utf-8\", errors=\"replace\"`, resumable so a crash mid-batch does not restart from zero) and `tune/freeze.py` (deterministic 80/10/10 split, SHA256 manifest, refuses to overwrite an existing manifest). Label 500-2,000 mined inputs. **Near-duplicate leakage across splits is the failure mode to design against** — exact-match dedup in Step 1 does not catch a hunk that differs by a variable name, and a near-dupe spanning train and test silently inflates the tuned score.\n- **Type:** code\n- **Issue:** #\n- **Flags:** --reviewers deep --isolation worktree\n- **Produces:** `tune/label.py`, `tune/freeze.py`, `data/labeled.jsonl`, `data/golden/{train,dev,test}.jsonl`, `data/golden/MANIFEST.sha256`, `data/golden/leakage-report.json`\n- **Done when:** at least 500 labeled rows exist with the `pass`/`flag` distribution reported in the run log; the frozen splits are written; `freeze.py` exits non-zero when asked to overwrite an existing manifest; a deliberate one-byte edit to `test.jsonl` makes manifest verification fail; **and `leakage-report.json` shows zero test-split rows whose normalized-token Jaccard similarity against any train-split row exceeds 0.9** (the check runs inside `freeze.py`, before the manifest is written, and a violation is a hard non-zero exit rather than a warning)\n- **Depends on:** 1\n\n<!-- autofix-applied: 2026-07-28 -->",
+      "acceptance": "at least 500 labeled rows exist with the `pass`/`flag` distribution reported in the run log; the frozen splits are written; `freeze.py` exits non-zero when asked to overwrite an existing manifest; a deliberate one-byte edit to `test.jsonl` makes manifest verification fail; **and `leakage-report.json` shows zero test-split rows whose normalized-token Jaccard similarity against any train-split row exceeds 0.9** (the check runs inside `freeze.py`, before the manifest is written, and a violation is a hard non-zero exit rather than a warning)",
+      "kind": "task",
+      "status": "unknown",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "1"
+      ],
+      "write_paths": null,
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "code",
+      "flags": "--reviewers deep --isolation worktree",
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "7b1c2847184714332a4874e0d45bcc9f46f14e15c0e26352dd029430b633451f",
+      "heading": "### Step T2: Mint teacher labels with Claude and freeze the golden set"
+    },
+    {
+      "work_id": "work_4e737d3ce96060b48dd232e3469edb3ba0afb3910b59f31b23b192283d880df4",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 917,
+          "line_end": 926,
+          "excerpt": "### Step T3: Eval harness with calibration anchors and the zero-dep guard\n- **Problem:** Implement `tune/evalharness.py`, scoring any named runner against the frozen test split. It must import `SYSTEM_PROMPT` and the verdict-parsing path from `switchboard.client` (never re-implement them), expose **one** `build_messages(case) -> list[dict]` helper that every consumer (miner, labeler, trainer, evaluator) calls so the message assembly has a single source of truth, reuse `harness.aggregate_agreement`'s rule that defers are excluded from the denominator, verify the golden manifest on every run, and **abort** rather than warn on manifest mismatch or on any fallback prompt/config path. Report the **three-number metric block** defined in D10 (agreement, coverage, strict) rather than a single agreement figure. Add the calibration anchors (`claude`, `always-pass`) and a regression test asserting `evalharness` uses switchboard's `SYSTEM_PROMPT` object **identity** (`is`), plus a test asserting `switchboard/pyproject.toml` still declares `dependencies = []`.\n- **Type:** code\n- **Issue:** #\n- **Flags:** --reviewers deep --isolation worktree\n- **Produces:** `tune/evalharness.py`, `tune/messages.py`, `tests/test_evalharness.py`, `tests/test_switchboard_invariants.py`\n- **Done when:** the calibration gate passes — `score(claude) > score(always-pass)` by a wide, recorded margin on the frozen test set; **Claude's self-agreement against its own frozen labels is recorded as the practical ceiling** (the student is not expected to exceed it, and a ceiling far below 1.0 means the task itself is ambiguous and the write-up must say so); every runner report carries all three of agreement / coverage / strict; the `is`-identity test fails if `SYSTEM_PROMPT` is copied instead of imported; the zero-dep test fails if any dependency is added to `switchboard/pyproject.toml`; a corrupted manifest causes a non-zero exit, not a warning\n- **Depends on:** 2\n\n<!-- autofix-applied: 2026-07-28 -->"
+        }
+      ],
+      "title": "Eval harness with calibration anchors and the zero-dep guard",
+      "summary": "### Step T3: Eval harness with calibration anchors and the zero-dep guard\n- **Problem:** Implement `tune/evalharness.py`, scoring any named runner against the frozen test split. It must import `SYSTEM_PROMPT` and the verdict-parsing path from `switchboard.client` (never re-implement them), expose **one** `build_messages(case) -> list[dict]` helper that every consumer (miner, labeler, trainer, evaluator) calls so the message assembly has a single source of truth, reuse `harness.aggregate_agreement`'s rule that defers are excluded from the denominator, verify the golden manifest on every run, and **abort** rather than warn on manifest mismatch or on any fallback prompt/config path. Report the **three-number metric block** defined in D10 (agreement, coverage, strict) rather than a single agreement figure. Add the calibration anchors (`claude`, `always-pass`) and a regression test asserting `evalharness` uses switchboard's `SYSTEM_PROMPT` object **identity** (`is`), plus a test asserting `switchboard/pyproject.toml` still declares `dependencies = []`.\n- **Type:** code\n- **Issue:** #\n- **Flags:** --reviewers deep --isolation worktree\n- **Produces:** `tune/evalharness.py`, `tune/messages.py`, `tests/test_evalharness.py`, `tests/test_switchboard_invariants.py`\n- **Done when:** the calibration gate passes — `score(claude) > score(always-pass)` by a wide, recorded margin on the frozen test set; **Claude's self-agreement against its own frozen labels is recorded as the practical ceiling** (the student is not expected to exceed it, and a ceiling far below 1.0 means the task itself is ambiguous and the write-up must say so); every runner report carries all three of agreement / coverage / strict; the `is`-identity test fails if `SYSTEM_PROMPT` is copied instead of imported; the zero-dep test fails if any dependency is added to `switchboard/pyproject.toml`; a corrupted manifest causes a non-zero exit, not a warning\n- **Depends on:** 2\n\n<!-- autofix-applied: 2026-07-28 -->",
+      "acceptance": "the calibration gate passes — `score(claude) > score(always-pass)` by a wide, recorded margin on the frozen test set; **Claude's self-agreement against its own frozen labels is recorded as the practical ceiling** (the student is not expected to exceed it, and a ceiling far below 1.0 means the task itself is ambiguous and the write-up must say so); every runner report carries all three of agreement / coverage / strict; the `is`-identity test fails if `SYSTEM_PROMPT` is copied instead of imported; the zero-dep test fails if any dependency is added to `switchboard/pyproject.toml`; a corrupted manifest causes a non-zero exit, not a warning",
+      "kind": "task",
+      "status": "unknown",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "2"
+      ],
+      "write_paths": null,
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "code",
+      "flags": "--reviewers deep --isolation worktree",
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "7fe506b015d3d7a9905245a6de360e7dedc16198d27ac0876b6d5f1efb30976e",
+      "heading": "### Step T3: Eval harness with calibration anchors and the zero-dep guard"
+    },
+    {
+      "work_id": "work_d323f504b26fcd14f53f4bec67cd965772528aa8ac846705dd861ce059f0f2d9",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 927,
+          "line_end": 936,
+          "excerpt": "### Step T4: End-to-end smoke gate — 20 rows, 10 steps, one real verdict\n- **Problem:** Prove the whole pipeline can complete one real cycle before spending an hour on a full run, and before any number is measured. Implement `tune/train_sft.py` and `tune/export.py` far enough to train 10 optimizer steps on 20 rows, merge the adapter, convert to GGUF via llama.cpp's `convert_hf_to_gguf.py`, load it into llama.cpp, and send exactly one judge prompt through switchboard's own `local_judge`. Judgment quality is explicitly out of scope; the deliverable is \"the producer/consumer chain does not crash, the prompt survives the round trip unchanged, and trained weights actually reach the served model.\"\n- **Type:** code\n- **Issue:** #\n- **Flags:** --reviewers code --isolation worktree\n- **Produces:** `tune/train_sft.py` (smoke-capable), `tune/export.py`, `tests/test_chat_template_parity.py`, a smoke run log\n- **Done when:** all three gates pass — (a) one command runs train(10 steps)→merge→GGUF→llama.cpp→`local_judge` and the returned dict satisfies `result.get(\"defer\") is not True` and carries a `verdict` in `{\"pass\",\"flag\"}` with a non-empty `reason`; (b) **chat-template parity** — `tokenizer.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)` from the HF side is compared against llama-server's `/apply-template` response for the identical `msgs`, and the two strings are equal after normalizing trailing whitespace only; if llama-server in the installed revision does not expose `/apply-template`, fall back to reading the `tokenizer.chat_template` string embedded in the GGUF metadata via `gguf-dump` and asserting it equals the HF template source. A mismatch trains one format and serves another and is invisible to every other test in this plan, so this gate blocks; (c) **weights-moved sentinel** — the 20 smoke rows are labeled with a sentinel reason string the base model would never emit (use the fixed literal `ZZ-SMOKE-SENTINEL-7f3a`), and the exported GGUF rep"
+        }
+      ],
+      "title": "End-to-end smoke gate — 20 rows, 10 steps, one real verdict",
+      "summary": "### Step T4: End-to-end smoke gate — 20 rows, 10 steps, one real verdict\n- **Problem:** Prove the whole pipeline can complete one real cycle before spending an hour on a full run, and before any number is measured. Implement `tune/train_sft.py` and `tune/export.py` far enough to train 10 optimizer steps on 20 rows, merge the adapter, convert to GGUF via llama.cpp's `convert_hf_to_gguf.py`, load it into llama.cpp, and send exactly one judge prompt through switchboard's own `local_judge`. Judgment quality is explicitly out of scope; the deliverable is \"the producer/consumer chain does not crash, the prompt survives the round trip unchanged, and trained weights actually reach the served model.\"\n- **Type:** code\n- **Issue:** #\n- **Flags:** --reviewers code --isolation worktree\n- **Produces:** `tune/train_sft.py` (smoke-capable), `tune/export.py`, `tests/test_chat_template_parity.py`, a smoke run log\n- **Done when:** all three gates pass — (a) one command runs train(10 steps)→merge→GGUF→llama.cpp→`local_judge` and the returned dict satisfies `result.get(\"defer\") is not True` and carries a `verdict` in `{\"pass\",\"flag\"}` with a non-empty `reason`; (b) **chat-template parity** — `tokenizer.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)` from the HF side is compared against llama-server's `/apply-template` response for the identical `msgs`, and the two strings are equal after normalizing trailing whitespace only; if llama-server in the installed revision does not expose `/apply-template`, fall back to reading the `tokenizer.chat_template` string embedded in the GGUF metadata via `gguf-dump` and asserting it equals the HF template source. A mismatch trains one format and serves another and is invisible to every other test in this plan, so this gate blocks; (c) **weights-moved sentinel** — the 20 smoke rows are labeled with a sentinel reason string the base model would never emit (use the fixed literal `ZZ-SMOKE-SENTINEL-7f3a`), and the exported GGUF rep",
+      "acceptance": "all three gates pass — (a) one command runs train(10 steps)→merge→GGUF→llama.cpp→`local_judge` and the returned dict satisfies `result.get(\"defer\") is not True` and carries a `verdict` in `{\"pass\",\"flag\"}` with a non-empty `reason`; (b) **chat-template parity** — `tokenizer.apply_chat_template(msgs, tokenize=False, add_generation_prompt=True)` from the HF side is compared against llama-server's `/apply-template` response for the identical `msgs`, and the two strings are equal after normalizing trailing whitespace only; if llama-server in the installed revision does not expose `/apply-template`, fall back to reading the `tokenizer.chat_template` string embedded in the GGUF metadata via `gguf-dump` and asserting it equals the HF template source. A mismatch trains one format and serves another and is invisible to every other test in this plan, so this gate blocks; (c) **weights-moved sentinel** — the 20 smoke rows are labeled with a sentinel reason string the base model would never emit (use the fixed literal `ZZ-SMOKE-SENTINEL-7f3a`), and the exported GGUF reproduces that sentinel in `choices[0].message.content` for a smoke-set prompt, proving the merge→GGUF→llama.cpp path carries trained weights rather than silently serving the base model. Total wall clock under ~10 minutes.",
+      "kind": "task",
+      "status": "unknown",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "3"
+      ],
+      "write_paths": null,
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "code",
+      "flags": "--reviewers code --isolation worktree",
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "b182b6c0fe981eddac7ca7827136f43fcd0de6413879381ee8a0b29ec104edfe",
+      "heading": "### Step T4: End-to-end smoke gate — 20 rows, 10 steps, one real verdict"
+    },
+    {
+      "work_id": "work_b57056a8e333fd6aad50e940265984a0e1fdc57e1c8d1dde34661a883d2de737",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 937,
+          "line_end": 946,
+          "excerpt": "### Step T5: Baseline — score the untuned student through the shipped runtime\n- **Problem:** Score Qwen2.5-1.5B-Instruct, prompted with the production `SYSTEM_PROMPT` and untouched by training, against the frozen test split. **The baseline must be measured through the same runtime and the same quantization the tuned model will be served on** — convert the untuned base to GGUF at the identical quant level and score it through `local_judge`, exactly as Step 7 will score the tuned model. Measuring the baseline in fp16 transformers and the treatment in quantized llama.cpp would confound the training effect with a runtime and precision change. Also record the `coder-30b` reference column from the live endpoint.\n- **Type:** code\n- **Issue:** #\n- **Flags:** --reviewers code --isolation worktree\n- **Produces:** `results/baseline.json` (the D10 three-number block, per-case outcomes, model id, quant level, runtime, git sha, golden-set hash), a short note in `results/comparison.md`\n- **Done when:** `baseline.json` records agreement, coverage, and strict scores on the frozen test set with the golden-set SHA and the quant level embedded; the run is reproducible to the same numbers twice at temperature 0 **for the local student runners** (the `claude` runner is explicitly exempt from this reproducibility claim); `baseline.json` and the eventual `tuned.json` agree on `runtime` and `quant` fields, and the harness refuses to emit a delta if they do not; the `coder-30b` reference column is present and labeled as reference, not as a competitor\n- **Depends on:** 4\n\n<!-- autofix-applied: 2026-07-28 -->"
+        }
+      ],
+      "title": "Baseline — score the untuned student through the shipped runtime",
+      "summary": "### Step T5: Baseline — score the untuned student through the shipped runtime\n- **Problem:** Score Qwen2.5-1.5B-Instruct, prompted with the production `SYSTEM_PROMPT` and untouched by training, against the frozen test split. **The baseline must be measured through the same runtime and the same quantization the tuned model will be served on** — convert the untuned base to GGUF at the identical quant level and score it through `local_judge`, exactly as Step 7 will score the tuned model. Measuring the baseline in fp16 transformers and the treatment in quantized llama.cpp would confound the training effect with a runtime and precision change. Also record the `coder-30b` reference column from the live endpoint.\n- **Type:** code\n- **Issue:** #\n- **Flags:** --reviewers code --isolation worktree\n- **Produces:** `results/baseline.json` (the D10 three-number block, per-case outcomes, model id, quant level, runtime, git sha, golden-set hash), a short note in `results/comparison.md`\n- **Done when:** `baseline.json` records agreement, coverage, and strict scores on the frozen test set with the golden-set SHA and the quant level embedded; the run is reproducible to the same numbers twice at temperature 0 **for the local student runners** (the `claude` runner is explicitly exempt from this reproducibility claim); `baseline.json` and the eventual `tuned.json` agree on `runtime` and `quant` fields, and the harness refuses to emit a delta if they do not; the `coder-30b` reference column is present and labeled as reference, not as a competitor\n- **Depends on:** 4\n\n<!-- autofix-applied: 2026-07-28 -->",
+      "acceptance": "`baseline.json` records agreement, coverage, and strict scores on the frozen test set with the golden-set SHA and the quant level embedded; the run is reproducible to the same numbers twice at temperature 0 **for the local student runners** (the `claude` runner is explicitly exempt from this reproducibility claim); `baseline.json` and the eventual `tuned.json` agree on `runtime` and `quant` fields, and the harness refuses to emit a delta if they do not; the `coder-30b` reference column is present and labeled as reference, not as a competitor",
+      "kind": "task",
+      "status": "unknown",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "4"
+      ],
+      "write_paths": null,
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "code",
+      "flags": "--reviewers code --isolation worktree",
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "865314487be3c7de72bd37de77b524f79baf4a8860cd13cbecf4d8e6abd527e9",
+      "heading": "### Step T5: Baseline — score the untuned student through the shipped runtime"
+    },
+    {
+      "work_id": "work_9cf71132663af575ad15b46a86970ad3f8d0ca154fab801dffe84c83a1e5e405",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 947,
+          "line_end": 956,
+          "excerpt": "### Step T6: Full QLoRA SFT run\n- **Problem:** Complete `tune/train_sft.py` for the real run: 4-bit base, LoRA rank/alpha recorded, **loss masked on the prompt so only the verdict tokens train**, checkpoint selection on the dev split, temperature-0 eval, and a bounded `max_steps` so the run cannot exceed roughly 90 minutes. Record every hyperparameter alongside the adapter.\n- **Type:** code\n- **Issue:** #\n- **Flags:** --reviewers deep --isolation worktree\n- **Produces:** the trained adapter, `results/train_run.json` (hyperparameters, loss curve, chosen checkpoint + why, wall clock, peak VRAM)\n- **Done when:** training completes within the step budget without OOM; the selected checkpoint is chosen by dev-split metric and the choice is recorded; prompt-loss masking is demonstrated by a test asserting label tensors are `-100` across the prompt span\n- **Depends on:** 5\n\n<!-- autofix-applied: 2026-07-28 -->"
+        }
+      ],
+      "title": "Full QLoRA SFT run",
+      "summary": "### Step T6: Full QLoRA SFT run\n- **Problem:** Complete `tune/train_sft.py` for the real run: 4-bit base, LoRA rank/alpha recorded, **loss masked on the prompt so only the verdict tokens train**, checkpoint selection on the dev split, temperature-0 eval, and a bounded `max_steps` so the run cannot exceed roughly 90 minutes. Record every hyperparameter alongside the adapter.\n- **Type:** code\n- **Issue:** #\n- **Flags:** --reviewers deep --isolation worktree\n- **Produces:** the trained adapter, `results/train_run.json` (hyperparameters, loss curve, chosen checkpoint + why, wall clock, peak VRAM)\n- **Done when:** training completes within the step budget without OOM; the selected checkpoint is chosen by dev-split metric and the choice is recorded; prompt-loss masking is demonstrated by a test asserting label tensors are `-100` across the prompt span\n- **Depends on:** 5\n\n<!-- autofix-applied: 2026-07-28 -->",
+      "acceptance": "training completes within the step budget without OOM; the selected checkpoint is chosen by dev-split metric and the choice is recorded; prompt-loss masking is demonstrated by a test asserting label tensors are `-100` across the prompt span",
+      "kind": "task",
+      "status": "unknown",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "5"
+      ],
+      "write_paths": null,
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "code",
+      "flags": "--reviewers deep --isolation worktree",
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "a79eb07c27ed7c026f232101cbdf368b2e59979b8e438673f48e27886c16ce8d",
+      "heading": "### Step T6: Full QLoRA SFT run"
+    },
+    {
+      "work_id": "work_2172e509ac914c679dc32a404703a2c303cb724690ed305d21a247f7ebd276d2",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 957,
+          "line_end": 967,
+          "excerpt": "### Step T7: Eval the tuned student and write the honest comparison\n- **Problem:** Re-score the tuned student on the same frozen test split with the same harness, same runtime, and same quant level, then write `results/comparison.md`: baseline versus tuned across all three D10 numbers, the delta with its direction stated plainly, the `coder-30b` reference column, the Claude self-agreement ceiling, and an interpretation section that separates **format-compliance gains from judgment gains** (a coverage jump with a flat strict score means the fine-tune taught JSON formatting, not code review — say so). If tuning lost, the write-up says tuning lost and explores why. No re-running to chase a better number; a settings change produces a second recorded run, not a replacement. Emit `results/disagreements.jsonl` — one row per case where the tuned student disagreed with Claude — which is both an error-analysis artifact and the input Step 10's predicate tests.\n- **Type:** code\n- **Issue:** #\n- **Flags:** --reviewers code --isolation worktree\n- **Produces:** `results/tuned.json`, `results/comparison.md`, `results/disagreements.jsonl`\n- **Done when:** `comparison.md` states the delta in percentage points for agreement, coverage, and strict, with the golden-set hash and both model ids; the format-versus-judgment interpretation is present; the numbers in the doc are copy-verifiable from the two JSON files; `disagreements.jsonl` exists (possibly empty) and matches the Appendix A.1 schema. **If the strict delta is zero or negative, the write-up must additionally contain all four of:** (i) the delta stated plainly in the opening sentence, without hedging; (ii) the three most common disagreement patterns, quoted from `disagreements.jsonl` with their case labels; (iii) an explicit list of the candidate explanations considered — too few labels, model too small, teacher labels too noisy (compare against the Claude self-agreement ceiling from Step 3), prompt-loss masking wrong, quantizati"
+        }
+      ],
+      "title": "Eval the tuned student and write the honest comparison",
+      "summary": "### Step T7: Eval the tuned student and write the honest comparison\n- **Problem:** Re-score the tuned student on the same frozen test split with the same harness, same runtime, and same quant level, then write `results/comparison.md`: baseline versus tuned across all three D10 numbers, the delta with its direction stated plainly, the `coder-30b` reference column, the Claude self-agreement ceiling, and an interpretation section that separates **format-compliance gains from judgment gains** (a coverage jump with a flat strict score means the fine-tune taught JSON formatting, not code review — say so). If tuning lost, the write-up says tuning lost and explores why. No re-running to chase a better number; a settings change produces a second recorded run, not a replacement. Emit `results/disagreements.jsonl` — one row per case where the tuned student disagreed with Claude — which is both an error-analysis artifact and the input Step 10's predicate tests.\n- **Type:** code\n- **Issue:** #\n- **Flags:** --reviewers code --isolation worktree\n- **Produces:** `results/tuned.json`, `results/comparison.md`, `results/disagreements.jsonl`\n- **Done when:** `comparison.md` states the delta in percentage points for agreement, coverage, and strict, with the golden-set hash and both model ids; the format-versus-judgment interpretation is present; the numbers in the doc are copy-verifiable from the two JSON files; `disagreements.jsonl` exists (possibly empty) and matches the Appendix A.1 schema. **If the strict delta is zero or negative, the write-up must additionally contain all four of:** (i) the delta stated plainly in the opening sentence, without hedging; (ii) the three most common disagreement patterns, quoted from `disagreements.jsonl` with their case labels; (iii) an explicit list of the candidate explanations considered — too few labels, model too small, teacher labels too noisy (compare against the Claude self-agreement ceiling from Step 3), prompt-loss masking wrong, quantizati",
+      "acceptance": "`comparison.md` states the delta in percentage points for agreement, coverage, and strict, with the golden-set hash and both model ids; the format-versus-judgment interpretation is present; the numbers in the doc are copy-verifiable from the two JSON files; `disagreements.jsonl` exists (possibly empty) and matches the Appendix A.1 schema. **If the strict delta is zero or negative, the write-up must additionally contain all four of:** (i) the delta stated plainly in the opening sentence, without hedging; (ii) the three most common disagreement patterns, quoted from `disagreements.jsonl` with their case labels; (iii) an explicit list of the candidate explanations considered — too few labels, model too small, teacher labels too noisy (compare against the Claude self-agreement ceiling from Step 3), prompt-loss masking wrong, quantization damage — each marked supported or ruled out **by a number already in hand**, not by speculation; (iv) the one experiment that would most cheaply discriminate between the remaining explanations, written as a concrete next step rather than a vague \"more data would help\"",
+      "kind": "task",
+      "status": "unknown",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "6"
+      ],
+      "write_paths": null,
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "code",
+      "flags": "--reviewers code --isolation worktree",
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "69f453f05a63f04445257af1e8bfc2b0428b8e3c6778556a49e094e299c83ff6",
+      "heading": "### Step T7: Eval the tuned student and write the honest comparison"
+    },
+    {
+      "work_id": "work_1e256e8763a9f0d3290cdd0b57edee749b03d51769ea7ca6abafa33e457eac6d",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 968,
+          "line_end": 976,
+          "excerpt": "### Step T8: Ship script — place, certify, and report\n- **Problem:** Implement `tune/ship.py`: copy the quantized GGUF into llama-swap's model directory, add the model entry to llama-swap config, invoke `python -m switchboard bakeoff --suite <suite>` against the real endpoint, and surface the `certify_slice` verdict against the existing 0.20 kill threshold. The script only reports — it must not enable a slice on its own.\n- **Type:** code\n- **Issue:** #\n- **Flags:** --reviewers code --isolation worktree\n- **Produces:** `tune/ship.py`, a suite file for the tuned runner\n- **Done when:** `ship.py --dry-run` prints every action without performing it; the certify verdict is computed with switchboard's own `certify_slice`, not a local reimplementation; the script exits non-zero if the endpoint is unreachable rather than reporting a false pass\n- **Depends on:** 7\n"
+        }
+      ],
+      "title": "Ship script — place, certify, and report",
+      "summary": "### Step T8: Ship script — place, certify, and report\n- **Problem:** Implement `tune/ship.py`: copy the quantized GGUF into llama-swap's model directory, add the model entry to llama-swap config, invoke `python -m switchboard bakeoff --suite <suite>` against the real endpoint, and surface the `certify_slice` verdict against the existing 0.20 kill threshold. The script only reports — it must not enable a slice on its own.\n- **Type:** code\n- **Issue:** #\n- **Flags:** --reviewers code --isolation worktree\n- **Produces:** `tune/ship.py`, a suite file for the tuned runner\n- **Done when:** `ship.py --dry-run` prints every action without performing it; the certify verdict is computed with switchboard's own `certify_slice`, not a local reimplementation; the script exits non-zero if the endpoint is unreachable rather than reporting a false pass\n- **Depends on:** 7\n",
+      "acceptance": "`ship.py --dry-run` prints every action without performing it; the certify verdict is computed with switchboard's own `certify_slice`, not a local reimplementation; the script exits non-zero if the endpoint is unreachable rather than reporting a false pass",
+      "kind": "task",
+      "status": "unknown",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "7"
+      ],
+      "write_paths": null,
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "code",
+      "flags": "--reviewers code --isolation worktree",
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "ca6d1d71ba97f886e1309022222a6958619bd4410843a1e6eb889cf2d478dca5",
+      "heading": "### Step T8: Ship script — place, certify, and report"
+    },
+    {
+      "work_id": "work_281e83ce6dd68a601b4042634605bb4c9372a078c3e2481b568d37ae142305d2",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 977,
+          "line_end": 989,
+          "excerpt": "### Step T9: Live certify and enable decision (operator)\n- **Problem:** Run `tune/ship.py` against the live WSL2 endpoint, review the bake-off report, and decide whether the tuned model earns the `review-deep-style` slice. Related to issue #237 (live capture) — this run produces real captured verdicts for the tuned runner, but does not close #237, which needs its own `coder-30b` live capture.\n- **Type:** operator\n- **Issue:** #\n- **Done when (operator confirms each):**\n  1. `llama-swap` serves the tuned GGUF and `python -m switchboard config` reports the expected endpoint.\n  2. `python -m switchboard bakeoff` produces a report with real captured verdicts (not fixture values).\n  3. The disagreement rate is read against the 0.20 strict-greater-than kill rule, with defers excluded.\n  4. A written enable/do-not-enable decision is recorded in `results/comparison.md`.\n  5. If enabling: `~/.switchboard/config.json` sets `enabled_call_sites[\"review-deep-style\"]` and nothing else; `build-step-style` remains absent or `false`.\n- **Depends on:** 8\n\n<!-- autofix-applied: 2026-07-28 -->"
+        }
+      ],
+      "title": "Live certify and enable decision (operator)",
+      "summary": "### Step T9: Live certify and enable decision (operator)\n- **Problem:** Run `tune/ship.py` against the live WSL2 endpoint, review the bake-off report, and decide whether the tuned model earns the `review-deep-style` slice. Related to issue #237 (live capture) — this run produces real captured verdicts for the tuned runner, but does not close #237, which needs its own `coder-30b` live capture.\n- **Type:** operator\n- **Issue:** #\n- **Done when (operator confirms each):**\n  1. `llama-swap` serves the tuned GGUF and `python -m switchboard config` reports the expected endpoint.\n  2. `python -m switchboard bakeoff` produces a report with real captured verdicts (not fixture values).\n  3. The disagreement rate is read against the 0.20 strict-greater-than kill rule, with defers excluded.\n  4. A written enable/do-not-enable decision is recorded in `results/comparison.md`.\n  5. If enabling: `~/.switchboard/config.json` sets `enabled_call_sites[\"review-deep-style\"]` and nothing else; `build-step-style` remains absent or `false`.\n- **Depends on:** 8\n\n<!-- autofix-applied: 2026-07-28 -->",
+      "acceptance": null,
+      "kind": "task",
+      "status": "unknown",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "8"
+      ],
+      "write_paths": null,
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "operator",
+      "flags": null,
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "b9ec32d8bf86c49db2fa81eda9f5b649683545560d02cc192e941ff46bad90e9",
+      "heading": "### Step T9: Live certify and enable decision (operator)"
+    },
+    {
+      "work_id": "work_b034c56d3c2857ee6cd22c8dd956660a9a15d15207a1bc47939b9e6b3a96c8f4",
+      "project_slug": "switchboard",
+      "source_refs": [
+        {
+          "source_id": "src_4687b783bc2163d1e06e1c14a2fc7805919db33584b5b766a317b7fe13366aa6",
+          "locator": "switchboard/docs/plans/master_plan.md",
+          "digest": "afb937aaf71f1593b8d6b600ed2c1b809e93034e773921bd70091dece01465a9",
+          "observed_at": "2026-10-14T17:53:49.480683Z",
+          "line_start": 990,
+          "line_end": 1273,
+          "excerpt": "### Step T10: Optional DPO stretch\n- **Problem:** Build preference pairs from cases where the tuned student disagreed with Claude (Claude verdict = chosen, student verdict = rejected) and run a DPO pass, then re-score on the frozen test split with the same harness, same runtime, and same quant level.\n- **Type:** conditional\n- **Condition:** `f=\"$(git rev-parse --show-toplevel)/switchboard-tune/results/disagreements.jsonl\"; test -s \"$f\" && test \"$(wc -l < \"$f\")\" -ge 100`\n- **Issue:** #\n- **Flags:** --reviewers code --isolation worktree\n- **Produces:** `tune/dpo.py`, `results/dpo.json`, a comparison section appended to `results/comparison.md`\n- **Done when:** DPO completes within VRAM budget and the post-DPO score is recorded against the same frozen test split under the same runtime/quant fields the harness enforces; if the pair-count predicate is false the step skips cleanly and Step 7's write-up notes why\n- **Depends on:** 9\n\n---\n\n**Autonomous-behavior classification.** The training and eval pipeline is a set of **one-shot CLI\ninvocations** that complete and return — it is not a daemon, scheduled job, soak loop, or always-on\nwatcher. The autonomous-behavior trigger therefore **does not fire** for Steps 1-8 and 10, and reviewers\nshould confirm that classification rather than looking for a soak step. The one genuinely\nobservation-shaped unit is Step 9, which watches a real endpoint under live bake-off and is marked\n`Type: operator` for exactly that reason.\n\n**Data-pipeline smoke gate.** This feature is a long producer→consumer chain — mined hunk → production\nprompt → teacher label → frozen split → tokenizer → trainer → merged weights → GGUF → llama.cpp →\nswitchboard client → parsed verdict. Every arrow is a place where mocked unit tests pass while the real\nchain is broken. **Step 4 is the mandatory smoke gate**, and it deliberately precedes both the baseline\nmeasurement (Step 5) and the expensive training run (Step 6): 20 rows, 10 optimizer steps, one real\nverdict thr"
+        }
+      ],
+      "title": "Optional DPO stretch",
+      "summary": "### Step T10: Optional DPO stretch\n- **Problem:** Build preference pairs from cases where the tuned student disagreed with Claude (Claude verdict = chosen, student verdict = rejected) and run a DPO pass, then re-score on the frozen test split with the same harness, same runtime, and same quant level.\n- **Type:** conditional\n- **Condition:** `f=\"$(git rev-parse --show-toplevel)/switchboard-tune/results/disagreements.jsonl\"; test -s \"$f\" && test \"$(wc -l < \"$f\")\" -ge 100`\n- **Issue:** #\n- **Flags:** --reviewers code --isolation worktree\n- **Produces:** `tune/dpo.py`, `results/dpo.json`, a comparison section appended to `results/comparison.md`\n- **Done when:** DPO completes within VRAM budget and the post-DPO score is recorded against the same frozen test split under the same runtime/quant fields the harness enforces; if the pair-count predicate is false the step skips cleanly and Step 7's write-up notes why\n- **Depends on:** 9\n\n---\n\n**Autonomous-behavior classification.** The training and eval pipeline is a set of **one-shot CLI\ninvocations** that complete and return — it is not a daemon, scheduled job, soak loop, or always-on\nwatcher. The autonomous-behavior trigger therefore **does not fire** for Steps 1-8 and 10, and reviewers\nshould confirm that classification rather than looking for a soak step. The one genuinely\nobservation-shaped unit is Step 9, which watches a real endpoint under live bake-off and is marked\n`Type: operator` for exactly that reason.\n\n**Data-pipeline smoke gate.** This feature is a long producer→consumer chain — mined hunk → production\nprompt → teacher label → frozen split → tokenizer → trainer → merged weights → GGUF → llama.cpp →\nswitchboard client → parsed verdict. Every arrow is a place where mocked unit tests pass while the real\nchain is broken. **Step 4 is the mandatory smoke gate**, and it deliberately precedes both the baseline\nmeasurement (Step 5) and the expensive training run (Step 6): 20 rows, 10 optimizer steps, one real\nverdict thr",
+      "acceptance": "DPO completes within VRAM budget and the post-DPO score is recorded against the same frozen test split under the same runtime/quant fields the harness enforces; if the pair-count predicate is false the step skips cleanly and Step 7's write-up notes why",
+      "kind": "task",
+      "status": "unknown",
+      "status_basis": "declared",
+      "parent_id": null,
+      "aliases": [],
+      "dependencies": [],
+      "unresolved_dependencies": [
+        "9"
+      ],
+      "write_paths": null,
+      "shared_resources": [],
+      "approvals": [],
+      "goal_links": [],
+      "estimate": null,
+      "unit_type": "conditional",
+      "flags": "--reviewers code --isolation worktree",
+      "phase_key": null,
+      "rollup": null,
+      "source_digest": "e53adc7162249aa623fe34680bf0dbb41254ef448b4b0c535bf760469292d657",
+      "heading": "### Step T10: Optional DPO stretch"
+    }
+  ]
+}

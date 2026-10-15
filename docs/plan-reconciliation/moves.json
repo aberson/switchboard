@@ -1,0 +1,52 @@
+{
+  "project": "switchboard",
+  "pre_status": "",
+  "moves": [
+    {
+      "source": "../../docs/switchboard-offload-plan.md",
+      "workspace_source": "docs/switchboard-offload-plan.md",
+      "destination": "docs/archived-plans/workspace-docs/switchboard-offload-plan.md",
+      "sha256": "dbdc37266f3032de35880466ba308f4169ddb0d688a51a0c7088ecdc076bd8df",
+      "git_status": ""
+    },
+    {
+      "source": "../../docs/switchboard-offload-phase-b-plan.md",
+      "workspace_source": "docs/switchboard-offload-phase-b-plan.md",
+      "destination": "docs/archived-plans/workspace-docs/switchboard-offload-phase-b-plan.md",
+      "sha256": "ef81d858d6a50dbcbddcd284999eaac2285b029b691c74fabdf112b800c3f713",
+      "git_status": ""
+    },
+    {
+      "source": "../../docs/switchboard-operator-surfaces-plan.md",
+      "workspace_source": "docs/switchboard-operator-surfaces-plan.md",
+      "destination": "docs/archived-plans/workspace-docs/switchboard-operator-surfaces-plan.md",
+      "sha256": "d0bbbc63c2936dc62dd0545a72234141ac94e23b1857a624a5bd58eb10703b5c",
+      "git_status": ""
+    },
+    {
+      "source": "../../docs/switchboard-phase-2-plan.md",
+      "workspace_source": "docs/switchboard-phase-2-plan.md",
+      "destination": "docs/archived-plans/workspace-docs/switchboard-phase-2-plan.md",
+      "sha256": "e8b693dd3c27df31bb904087f56346fe164550f787dccf65cf97493835f3f3e6",
+      "git_status": ""
+    },
+    {
+      "source": "../../docs/switchboard-tune-plan.md",
+      "workspace_source": "docs/switchboard-tune-plan.md",
+      "destination": "docs/archived-plans/workspace-docs/switchboard-tune-plan.md",
+      "sha256": "2759ad2142c600d005fbd9f4042bd20c4fc9756f3410aa9d7bf5225ec79ef5aa",
+      "git_status": ""
+    }
+  ],
+  "source_to_master": {
+    "switchboard-offload-plan.md": "docs/plans/master_plan.md",
+    "switchboard-offload-phase-b-plan.md": "docs/plans/master_plan.md",
+    "switchboard-operator-surfaces-plan.md": "docs/plans/master_plan.md",
+    "switchboard-phase-2-plan.md": "docs/plans/master_plan.md",
+    "switchboard-tune-plan.md": "docs/plans/master_plan.md"
+  },
+  "affected_references": [
+    "docs/plans/master_plan.md",
+    "CLAUDE.md"
+  ]
+}
