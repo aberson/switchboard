@@ -110,9 +110,7 @@ def test_disagreement_below_threshold_does_not_kill() -> None:
     urllib.request.urlopen = _stub  # type: ignore[assignment]
     try:
         cases = [ShadowCase(f"d{i}", expected="pass") for i in range(4)]
-        report = run_shadow(
-            cases, config=ENABLED, task_class="style-lens", kill_threshold=0.30
-        )
+        report = run_shadow(cases, config=ENABLED, task_class="style-lens", kill_threshold=0.30)
     finally:
         urllib.request.urlopen = orig  # type: ignore[assignment]
 
@@ -173,9 +171,7 @@ def test_inert_when_site_disabled() -> None:
 
 def test_uses_isolated_metrics_by_default(patch_client: ApplyStub) -> None:
     patch_client(make_json_urlopen(chat_envelope(PASS_CONTENT)))
-    report = run_shadow(
-        [ShadowCase("a", expected="pass")], config=ENABLED, task_class="style-lens"
-    )
+    report = run_shadow([ShadowCase("a", expected="pass")], config=ENABLED, task_class="style-lens")
     # A fresh internal counter -> quota_saved reflects only this run's single verdict.
     assert report.quota_saved == 1
 
@@ -202,9 +198,7 @@ def test_bad_kill_threshold_rejected() -> None:
 
 def test_summary_lines_render(patch_client: ApplyStub) -> None:
     patch_client(make_json_urlopen(chat_envelope(PASS_CONTENT)))
-    report = run_shadow(
-        [ShadowCase("a", expected="pass")], config=ENABLED, task_class="style-lens"
-    )
+    report = run_shadow([ShadowCase("a", expected="pass")], config=ENABLED, task_class="style-lens")
     lines = report.summary_lines()
     joined = "\n".join(lines)
     assert "quota saved:" in joined

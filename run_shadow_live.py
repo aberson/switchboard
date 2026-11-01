@@ -84,8 +84,7 @@ def main() -> int:
         verdict = o.local_verdict if o.local_verdict else f"DEFER({o.reason_class})"
         mark = "OK " if o.agreed else ("def" if o.deferred else "DIFF")
         print(
-            f"  [{mark}] {o.label:24} expected={o.expected:4} "
-            f"local={verdict}  {o.elapsed_s:.1f}s"
+            f"  [{mark}] {o.label:24} expected={o.expected:4} local={verdict}  {o.elapsed_s:.1f}s"
         )
     return 0
 
