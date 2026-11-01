@@ -3,6 +3,7 @@
     python -m switchboard judge --site <task_class> [--prompt-file PATH | --prompt STR]
     python -m switchboard bakeoff --suite <path> [--output-dir <dir>]
     python -m switchboard config [--path PATH]
+    python -m switchboard inspect [--path PATH] [--json] [--roles]
 
 ``--site`` is the canonical flag the wired SKILL.md prose passes (the call-site task_class);
 ``--slice`` is a back-compat alias for the same value. Exactly one must be given.
@@ -20,6 +21,11 @@ grep-able summary line. It is deterministic — no network, no model.
 
 The ``config`` subcommand resolves + validates the effective config and prints it as JSON —
 the operator's loud "is offload actually on?" pre-flight (the antidote to silent-off).
+
+The ``inspect`` subcommand reports config, per-site effective models, the resolved role pin
+table, and one bounded endpoint probe. ``inspect --roles --json`` prints only the resolved
+role pin table and never probes the endpoint, so an external driver can read pins without
+importing this package. Role pins are report-only: nothing here dispatches by role.
 
 Contract for the CALLER (a skill):
   * exit code is ALWAYS 0 on a well-formed judge invocation — a ``defer`` is not an error, it
@@ -40,10 +46,10 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 from switchboard.bakeoff import (
     BakeoffError,
@@ -64,18 +70,21 @@ from switchboard.client import (
 )
 from switchboard.config import (
     ConfigError,
+    RolePin,
     SiteInspection,
     SwitchboardConfig,
     config_source_label,
     inspect_sites,
     load_config,
+    resolve_roles,
 )
 from switchboard.health import EndpointStatus, Health, endpoint_status, health
 from switchboard.metrics import METRICS, Metrics
 
 # Default output dir for `bakeoff` when --output-dir is omitted: a repo-local _tmp/ sibling.
 DEFAULT_BAKEOFF_OUTPUT = "_tmp"
-INSPECT_SCHEMA_VERSION = 1
+# v2 added the ``roles`` table (and the probe-free ``inspect --roles`` view).
+INSPECT_SCHEMA_VERSION = 2
 InspectState = Literal[
     "absent",
     "invalid",
@@ -214,6 +223,8 @@ def _run_config(path: str | None) -> int:
         "warm_timeout_s": config.warm_timeout_s,
         "enabled_call_sites": dict(config.enabled_call_sites),
         "effort": dict(config.effort),
+        "roles": {role: dict(pin) for role, pin in config.roles.items()},
+        "claims": dict(config.claims),
     }
     json.dump(report, sys.stdout, indent=2)
     sys.stdout.write("\n")
@@ -233,6 +244,7 @@ class InspectReport:
     config: dict[str, object] | None
     health: Health | None
     sites: tuple[SiteInspection, ...]
+    roles: tuple[RolePin, ...]
     error: str | None
     limitations: tuple[str, ...]
 
@@ -247,6 +259,7 @@ class InspectReport:
             "config": self.config,
             "health": self.health,
             "sites": [site.to_json() for site in self.sites],
+            "roles": [role.to_json() for role in self.roles],
             "error": self.error,
             "limitations": list(self.limitations),
         }
@@ -256,6 +269,8 @@ _INSPECT_LIMITATIONS = (
     "Endpoint reachability is not bake-off certification or correctness evidence.",
     "A configured effort hint is Claude-side metadata; the local judge client does not consume it.",
     "No outcome or retry evidence is inferred from endpoint health or config state.",
+    "Role pins are report-only: nothing in switchboard dispatches by role, and null means no "
+    "measured pin yet.",
 )
 
 
@@ -290,6 +305,7 @@ def build_inspect_report(path: str | None = None) -> InspectReport:
             config=None,
             health=None,
             sites=(),
+            roles=(),
             error=str(exc),
             limitations=_INSPECT_LIMITATIONS,
         )
@@ -316,6 +332,7 @@ def build_inspect_report(path: str | None = None) -> InspectReport:
         },
         health=health_result,
         sites=sites,
+        roles=resolve_roles(config),
         error=None,
         limitations=_INSPECT_LIMITATIONS,
     )
@@ -336,10 +353,62 @@ def _print_inspect(report: InspectReport) -> None:
             f"  site={site.site} enabled={site.site_enabled} "
             f"effective_model={site.effective_model} effort={site.effort_hint}"
         )
+    _print_roles([pin.to_json() for pin in report.roles])
 
 
-def _run_inspect(path: str | None, json_output: bool) -> int:
+def build_roles_report(path: str | None = None) -> dict[str, object]:
+    """The probe-free ``inspect --roles`` view: the resolved role pin table only.
+
+    Reads and validates config exactly as ``inspect`` does but never calls the endpoint. An
+    invalid config is reported as data (``config_state: invalid``, empty ``roles``), not a
+    crash, so a driver sees the failure instead of an empty pin table that looks unpinned.
+    """
+    source = config_source_label(path)
+    try:
+        config, source = load_config(path)
+    except ConfigError as exc:
+        return {
+            "schema_version": INSPECT_SCHEMA_VERSION,
+            "view": "roles",
+            "config_state": "invalid",
+            "source": source,
+            "roles": [],
+            "error": str(exc),
+        }
+    return {
+        "schema_version": INSPECT_SCHEMA_VERSION,
+        "view": "roles",
+        "config_state": "absent" if source == "defaults" else "valid",
+        "source": source,
+        "roles": [role.to_json() for role in resolve_roles(config)],
+        "error": None,
+    }
+
+
+def _print_roles(rows: Sequence[Mapping[str, object]]) -> None:
+    for row in rows:
+        print(
+            f"  role={row['role']} provider={row['provider']} model={row['model']} "
+            f"tier={row['tier']} claim={row['claim_id']} status={row['claim_status']}"
+        )
+
+
+def _run_inspect(path: str | None, json_output: bool, roles_only: bool = False) -> int:
     """Emit an inspect report for all config/endpoint states; invalid is data, not a crash."""
+    if roles_only:
+        roles_report = build_roles_report(path)
+        if json_output:
+            json.dump(roles_report, sys.stdout, indent=2, sort_keys=True)
+            sys.stdout.write("\n")
+            return 0
+        print("== switchboard inspect --roles ==")
+        print(f"  config: {roles_report['config_state']}")
+        print(f"  source: {roles_report['source']}")
+        if roles_report["error"] is not None:
+            print(f"  config error: {roles_report['error']}")
+            return 0
+        _print_roles(cast("list[Mapping[str, object]]", roles_report["roles"]))
+        return 0
     report = build_inspect_report(path)
     if json_output:
         json.dump(report.to_json(), sys.stdout, indent=2, sort_keys=True)
@@ -442,6 +511,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="write the versioned machine-readable report to stdout",
     )
+    inspect_cmd.add_argument(
+        "--roles",
+        action="store_true",
+        help="report only the resolved role pin table; never probes the endpoint",
+    )
     return parser
 
 
@@ -481,7 +555,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_config(args.path)
 
     if args.command == "inspect":
-        return _run_inspect(args.path, args.json)
+        return _run_inspect(args.path, args.json, args.roles)
 
     # argparse `required=True` on the subparser makes this unreachable, but keep it total.
     parser.error(f"unknown command {args.command!r}")  # pragma: no cover

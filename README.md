@@ -18,8 +18,10 @@ Built to the D1 contract pinned in
 - `switchboard/config.py` — `SwitchboardConfig`: the `less_token_mode` global toggle, the
   `enabled_call_sites` (`task_class -> bool | model`) map, the `effort` (`task_class -> tier`)
   map (config-only — a Claude-side dispatch hint switchboard validates + round-trips but does
-  NOT act on; `local_judge` ignores it), and endpoint/timeout/`max_tokens` defaults (validated
-  at construction). `load_config()` resolves an operator config
+  NOT act on; `local_judge` ignores it), the report-only `roles` pin table
+  (`role -> {provider, model, tier, claim_id}`, every value nullable, null = no measured pin yet)
+  with the `claims` map (`claim_id -> MEASURED|PARTIAL|ASSERTED|STALE`) a pin must cite, and
+  endpoint/timeout/`max_tokens` defaults (validated at construction). `load_config()` resolves an operator config
   (explicit arg → `$SWITCHBOARD_CONFIG` → `~/.switchboard/config.json` → inert defaults) and
   `from_mapping()` rejects unknown keys with a clean `ConfigError` (see "Turning offload on/off").
 - `switchboard/health.py` — `health()` / `is_warm()` / `warm_up()` reachability + warmth
@@ -44,6 +46,11 @@ Built to the D1 contract pinned in
   selected config source, inactive/active state, effective model and `effort` hint per configured
   site, plus one bounded endpoint probe. Endpoint reachability is not quality or certification
   evidence; `effort` is Claude-side metadata only and is not consumed by the local client.
+- `uv run python -m switchboard inspect --roles --json` prints only the resolved role pin table
+  (all ten roles, nulls for unpinned) and never probes the endpoint, so an external driver can
+  read pins without importing this package. Pins are report-only: nothing in switchboard,
+  including `local_judge`, dispatches by role. An unknown role, an unknown pin key, or a
+  `claim_id` absent from `claims` makes the config invalid, reported as `config_state: invalid`.
 - `uv run python -m switchboard config` is the loud validation pre-flight. It resolves and validates
   config without probing or starting the endpoint. Use `--path` before installing a candidate file.
 - `uv run python -m switchboard bakeoff --suite suites\review-deep-style.json --output-dir _tmp`

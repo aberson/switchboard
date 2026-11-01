@@ -25,6 +25,8 @@ uv run ruff format --check .
 uv run mypy --strict switchboard
 # primary read surface: config, per-site effective model, and bounded endpoint probe
 uv run python -m switchboard inspect --json
+# report-only role pin table (role -> provider/model/tier/claim_id); no endpoint probe
+uv run python -m switchboard inspect --roles --json
 # config-only validation (does not launch or probe the endpoint)
 uv run python -m switchboard config
 # deterministic recorded evidence; writes report.md, scores.jsonl, and bakeoff.json

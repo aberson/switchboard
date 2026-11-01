@@ -7,6 +7,8 @@ anything. Consumers may display it beside a current `python -m switchboard inspe
 The fixture names every accepted config field, the exact filename and selection precedence, default
 values, validation boundaries, and every `inspect`/endpoint state. `effort` remains a Claude-side
 hint only: Switchboard validates and reports it but the local judge client does not consume it.
+The `roles` pin table and its `claims` map are report-only in the same way: validated, surfaced by
+`inspect --json` and the probe-free `inspect --roles --json` view, and never acted on.
 
 ## Update rule
 

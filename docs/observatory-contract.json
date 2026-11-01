@@ -3,12 +3,14 @@
   "config": {
     "defaults": {
       "base_url": "http://localhost:8080/v1",
+      "claims": {},
       "cold_timeout_s": 540.0,
       "effort": {},
       "enabled_call_sites": {},
       "less_token_mode": true,
       "max_tokens": 800,
       "model": "coder-30b",
+      "roles": {},
       "warm_timeout_s": 60.0
     },
     "directory_name": ".switchboard",
@@ -17,6 +19,8 @@
       "less_token_mode",
       "enabled_call_sites",
       "effort",
+      "roles",
+      "claims",
       "base_url",
       "model",
       "cold_timeout_s",
@@ -54,9 +58,39 @@
         "medium",
         "xhigh"
       ],
+      "allowed_role_providers": [
+        "claude",
+        "codex",
+        "local"
+      ],
+      "allowed_roles": [
+        "author",
+        "lens",
+        "reviewer",
+        "delta_reviewer",
+        "packager",
+        "builder",
+        "verifier_contract",
+        "verifier_host",
+        "final_judge",
+        "driver"
+      ],
       "base_url": "safe http(s) URL only; traversal and shell characters are rejected",
+      "claim_statuses": [
+        "MEASURED",
+        "PARTIAL",
+        "ASSERTED",
+        "STALE"
+      ],
       "max_tokens_minimum": 600,
       "name": "non-empty letters, digits, dot, underscore, and hyphen only",
+      "role_pin_fields": [
+        "provider",
+        "model",
+        "tier",
+        "claim_id"
+      ],
+      "role_values": "each role pin value may be null (no measured pin yet); tier uses allowed_effort_tiers; claim_id must name a key of claims",
       "unknown_top_level_fields": "rejected"
     }
   },
@@ -66,7 +100,24 @@
       "online-model-missing",
       "online-model-served"
     ],
-    "schema_version": 1,
+    "role_fields": [
+      "role",
+      "configured",
+      "provider",
+      "model",
+      "tier",
+      "claim_id",
+      "claim_status"
+    ],
+    "roles_view_fields": [
+      "schema_version",
+      "view",
+      "config_state",
+      "source",
+      "roles",
+      "error"
+    ],
+    "schema_version": 2,
     "site_fields": [
       "site",
       "configured_value",

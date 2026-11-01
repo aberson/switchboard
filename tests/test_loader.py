@@ -54,6 +54,8 @@ def test_allowed_top_level_fields_is_exactly_the_known_field_set() -> None:
         "less_token_mode",
         "enabled_call_sites",
         "effort",
+        "roles",
+        "claims",
         "base_url",
         "model",
         "cold_timeout_s",

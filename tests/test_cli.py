@@ -19,7 +19,7 @@ from pathlib import Path
 import pytest
 
 from switchboard.cli import INSPECT_SCHEMA_VERSION, INSPECT_STATES, main, run_judge
-from switchboard.config import SwitchboardConfig
+from switchboard.config import ALLOWED_ROLES, ROLE_PIN_FIELDS, SwitchboardConfig
 from switchboard.health import ENDPOINT_STATUSES
 from switchboard.metrics import METRICS, Metrics
 from tests.conftest import (
@@ -441,3 +441,200 @@ def test_observatory_contract_matches_inspect_runtime_shape() -> None:
         "offload_allowed",
         "effort_hint",
     ]
+    assert inspect_contract["role_fields"] == [
+        "role",
+        "configured",
+        *ROLE_PIN_FIELDS,
+        "claim_status",
+    ]
+
+
+# --- inspect --roles --json: report-only role pin table for an external driver -------------
+
+_ROLES_CONFIG = {
+    "less_token_mode": True,
+    "enabled_call_sites": {"review-deep-style": True},
+    "claims": {"lens-style-claim": "PARTIAL"},
+    "roles": {
+        "lens": {
+            "provider": "local",
+            "model": "other-local-model",
+            "tier": "low",
+            "claim_id": "lens-style-claim",
+        },
+        "driver": {"provider": None, "model": None, "tier": None, "claim_id": None},
+    },
+}
+
+
+def _write_roles_config(tmp_path: Path, data: object = None) -> Path:
+    path = tmp_path / "roles.json"
+    path.write_text(json.dumps(_ROLES_CONFIG if data is None else data), encoding="utf-8")
+    return path
+
+
+def _no_probe(config: SwitchboardConfig) -> object:
+    raise AssertionError(f"inspect --roles must not probe the endpoint: {config}")
+
+
+def test_inspect_roles_json_prints_resolved_table_without_probe(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = _write_roles_config(tmp_path)
+    monkeypatch.setattr("switchboard.cli.health", _no_probe)
+
+    rc = main(["inspect", "--roles", "--json", "--path", str(path)])
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    contract = json.loads(
+        (Path(__file__).parents[1] / "docs" / "observatory-contract.json").read_text(
+            encoding="utf-8"
+        )
+    )["inspect"]
+    assert sorted(report) == sorted(contract["roles_view_fields"])
+    assert report["schema_version"] == INSPECT_SCHEMA_VERSION
+    assert report["view"] == "roles"
+    assert report["config_state"] == "valid"
+    assert report["source"] == f"arg:{path}"
+    assert report["error"] is None
+    assert [row["role"] for row in report["roles"]] == list(ALLOWED_ROLES)
+    for row in report["roles"]:
+        assert sorted(row) == sorted(contract["role_fields"])
+
+    by_role = {row["role"]: row for row in report["roles"]}
+    assert by_role["lens"] == {
+        "role": "lens",
+        "configured": True,
+        "provider": "local",
+        "model": "other-local-model",
+        "tier": "low",
+        "claim_id": "lens-style-claim",
+        "claim_status": "PARTIAL",
+    }
+    assert by_role["driver"]["configured"] is True
+    assert by_role["driver"]["model"] is None
+    # Unconfigured role: all null, and the default local model is NOT substituted.
+    assert by_role["builder"] == {
+        "role": "builder",
+        "configured": False,
+        "provider": None,
+        "model": None,
+        "tier": None,
+        "claim_id": None,
+        "claim_status": None,
+    }
+
+
+def test_inspect_roles_json_absent_config_is_all_null(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr("switchboard.cli.health", _no_probe)
+    rc = main(["inspect", "--roles", "--json"])
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert report["config_state"] == "absent"
+    assert report["source"] == "defaults"
+    assert all(row["configured"] is False and row["model"] is None for row in report["roles"])
+
+
+@pytest.mark.parametrize(
+    ("bad", "needle"),
+    [
+        ({"roles": {"reviewer": {"claim_id": "missing-claim"}}}, "names no claim"),
+        ({"roles": {"coordinator": {}}}, "unknown role"),
+    ],
+)
+def test_inspect_roles_json_reports_invalid_pins_as_data(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    bad: dict[str, object],
+    needle: str,
+) -> None:
+    # Red-on-garbage at the read verb: a bad pin surfaces as invalid, never as an empty
+    # table that a driver would read as "nothing pinned".
+    path = _write_roles_config(tmp_path, bad)
+    monkeypatch.setattr("switchboard.cli.health", _no_probe)
+
+    rc = main(["inspect", "--roles", "--json", "--path", str(path)])
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert report["config_state"] == "invalid"
+    assert report["roles"] == []
+    assert needle in report["error"]
+
+
+def test_inspect_roles_human_output_lists_every_role(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = _write_roles_config(tmp_path)
+    monkeypatch.setattr("switchboard.cli.health", _no_probe)
+
+    rc = main(["inspect", "--roles", "--path", str(path)])
+    out = capsys.readouterr().out
+
+    assert rc == 0
+    for role in ALLOWED_ROLES:
+        assert f"role={role} " in out
+    assert "role=lens provider=local model=other-local-model tier=low" in out
+
+
+def test_full_inspect_json_carries_roles_table(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = _write_roles_config(tmp_path)
+    monkeypatch.setattr("switchboard.cli.health", lambda config: _offline_health())
+
+    rc = main(["inspect", "--json", "--path", str(path)])
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert report["schema_version"] == INSPECT_SCHEMA_VERSION
+    assert [row["role"] for row in report["roles"]] == list(ALLOWED_ROLES)
+    assert any("Role pins are report-only" in line for line in report["limitations"])
+    # The role pin never changes the per-site effective model: sites still use the default.
+    assert report["sites"][0]["effective_model"] == "coder-30b"
+
+
+def test_config_subcommand_round_trips_roles_and_claims(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = _write_roles_config(tmp_path)
+    rc = main(["config", "--path", str(path)])
+    report = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert report["roles"] == _ROLES_CONFIG["roles"]
+    assert report["claims"] == _ROLES_CONFIG["claims"]
+
+
+def test_judge_ignores_role_pins(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # local_judge must not act on roles: a lens pin naming another model leaves the request
+    # model, timeout, and verdict path exactly as the site config dictates.
+    path = _write_roles_config(tmp_path)
+    monkeypatch.setenv("SWITCHBOARD_CONFIG", str(path))
+    captured: dict[str, object] = {}
+
+    def _capturing(req: object, timeout: float | None = None):  # type: ignore[no-untyped-def]
+        captured["body"] = json.loads(req.data)  # type: ignore[attr-defined]
+        captured["timeout"] = timeout
+        from tests.conftest import _FakeResponse
+
+        return _FakeResponse(json.dumps(chat_envelope(PASS_CONTENT)).encode("utf-8"))
+
+    monkeypatch.setattr("switchboard.client.urllib.request.urlopen", _capturing)
+
+    rc = main(["judge", "--site", "review-deep-style", "--prompt", "judge this"])
+    result = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert result["verdict"] == "pass"
+    body = captured["body"]
+    assert isinstance(body, dict)
+    assert body["model"] == "coder-30b"
+    assert captured["timeout"] == SwitchboardConfig().warm_timeout_s
