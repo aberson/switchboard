@@ -1523,7 +1523,19 @@ measure-twice build or release.
 
 ### Step R3: observe records requested-versus-observed receipts
 - **Problem:** Record from native host evidence which model a role dispatch actually ran, plus its effort
-  when the host records one, and show it next to the requested value in `inspect --roles`.
+  when the host records one, and show it next to the requested value in `inspect --roles`. Work
+  pre-landed on master at 9d3cbc7d (`observe.py`, `test_observe.py`, the 7 fixtures under
+  `tests/fixtures/observe/`, `cli.py`, `registry.py`, `test_cli.py`, `observatory-contract.json` and
+  `.md`, `README.md`, `CLAUDE.md`, and this step's build-time Files/Produces amendment; nothing excluded)
+  after the first run's 2 rounds ended BLOCKED on two unreadable review records: gates green;
+  correctness, security, test-quality and plan-conformance PASS. Complete from HEAD; do not rebuild or
+  restructure the pre-landed work. Remaining gap: (1) `observe.resolve_home` calls `Path.home()`
+  unguarded and `inspect` now calls it outside any try, so `inspect --roles` (text or `--json`) can end
+  in a RuntimeError traceback when no home directory can be determined; before R3 it never needed one.
+  Report that case as data, the way `inspect` reports an unreadable receipts log, with a test driven
+  through `cli.main` that makes `Path.home()` raise. (2) Quote the path with `!r` in the two
+  `ObserveInputError` messages at `observe.py:310` and `observe.py:428`, like the module's other path
+  messages. (3) Split `tests/test_cli.py:487` so it fits the 100-column line limit.
 - **Type:** code
 - **Issue:** #573
 - **Flags:** --reviewers deep --isolation worktree
