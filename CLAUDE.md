@@ -7,8 +7,10 @@ overnight grader, suggestion judge, …) to a local OpenAI-compatible model (`co
 llama-swap on `localhost:8080`, in WSL2) and **defers to Claude on any failure**. Authorship,
 planning, and correctness gates always stay on Claude. The package is **stdlib-only, zero-dependency**
 and **inert until a config is deployed** — every call site is disabled by default and `local_judge`
-defers with no network call. Full detail in [`README.md`](README.md); plans live at
-[`../docs/switchboard-offload-phase-b-plan.md`](docs/plans/master_plan.md) and siblings.
+defers with no network call. Since 2026-11-08 switchboard is also the **model registry**: one
+committed role -> per-host model + effort table (`registry/models.json`) that `apply` renders into
+host-native role files and `observe` checks against what a dispatch actually ran. Full detail in
+[`README.md`](README.md); the plan is [`docs/plans/master_plan.md`](docs/plans/master_plan.md).
 
 ## Stack
 
@@ -55,6 +57,46 @@ uv run python -m switchboard
 Offload-state inspection is `uv run python -m switchboard config` (JSON report + source; non-zero
 exit on a broken config). The config is the only offload policy switch; the launcher only manages
 endpoint availability.
+
+## Directory layout
+
+```text
+switchboard/
+  switchboard/     package (stdlib only)
+  registry/        models.json: the committed role -> model/effort table
+  tests/           pytest suite; tests/fixtures/observe/ holds synthetic host transcripts
+  suites/          frozen bake-off suites (offload certification)
+  scripts/         start-offload.ps1, install-offload-icon.ps1, staged offload config
+  docs/            plans/master_plan.md, observatory-contract.json/.md, archived plans
+```
+
+## Architecture summary
+
+- **Model registry** — `registry.py` loads and validates `registry/models.json`; `generate.py`
+  (`apply`) writes `~/.claude/agents/role-*.md` and `~/.codex/agents/role-*.toml` under the
+  sha256 ownership ledger `~/.switchboard/generated.json`; `observe.py` reads model, effort and
+  agent-type metadata (never message text) from host transcripts into
+  `~/.switchboard/receipts.jsonl` and joins the latest receipt per host into `inspect --roles`.
+- **Offload core** — `client.py` (`local_judge`), `config.py` (the policy switch), `health.py`,
+  `metrics.py`; certification via `bakeoff.py`, `certify.py`, `harness.py`; `monitor.py` is
+  unwired auto-disable groundwork.
+- `cli.py` is the one CLI (`inspect`, `apply`, `observe`, `config`, `bakeoff`, judge entrypoint);
+  its JSON output is the dev-observatory contract in `docs/observatory-contract.json`.
+
+## Current state
+
+Phase R-A code steps R1-R3 complete — the committed role registry is shown by `inspect --roles`,
+`apply` generates Claude and Codex role files under the ownership ledger, and `observe` records
+requested-versus-observed receipts. Local offload is parked (R4, 2026-11-08: every call site
+`false`). Operator step R5, the live role-dispatch probe on the real hosts, is open; #582 tracks
+the remaining unguarded `Path.home()` sites.
+
+## Environment requirements
+
+- Windows + PowerShell (operator shell), Python ≥3.12, uv.
+- Claude Code and Codex CLIs for `apply`/`observe` against a real home (tests use `--home <tmp>`).
+- Offload only: the WSL2 `llama-swap` endpoint on `localhost:8080` (see Gotchas); nothing else
+  needs it.
 
 ## Gotchas
 
