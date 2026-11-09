@@ -25,7 +25,7 @@ uv run ruff format --check .
 uv run mypy --strict switchboard
 # primary read surface: config, per-site effective model, and bounded endpoint probe
 uv run python -m switchboard inspect --json
-# report-only role pin table (role -> provider/model/tier/claim_id); no endpoint probe
+# committed model registry table (role -> claude/codex model + effort, claim_id); no probe
 uv run python -m switchboard inspect --roles --json
 # config-only validation (does not launch or probe the endpoint)
 uv run python -m switchboard config
@@ -57,6 +57,11 @@ endpoint availability.
 - **Fail-safe by design**: a missing/malformed config or an unreadable prompt degrades to a Claude
   defer (exit 0), never a crash. Deleting `~/.switchboard/config.json` turns offload back off.
 - `build-step-style` stays disabled — the local model is never a merge/correctness gate (Decision 3).
+- The role -> model/effort table is the committed `registry/models.json` (validated by
+  `switchboard/registry.py`), not config: `roles`/`claims` in a config file are unknown keys.
+  Models are exact IDs or `inherit` (no aliases, no model containing `fable`); each host's effort
+  is checked against that host's own levels. Change a row only as a reviewed commit, and update
+  `docs/observatory-contract.json` with any registry or inspect field change.
 - Endpoint (`coder-30b` via `llama-swap.service` on `:8080`) lives in WSL2, installed by
   void_furnace; needs a keep-alive for the localhost relay.
 

@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "roles": {
+    "builder": {
+      "description": "Implementation arm: the build-step developer and the user-learn implementation arms",
+      "read_only": false,
+      "claude": {"model": "inherit", "effort": "inherit"},
+      "codex": {"model": "gpt-5.6-sol", "effort": "medium"},
+      "claim_id": "registry-builder-initial",
+      "evidence": "Claude inherit writes no key, so the session model resolves as today and there is no alias to confirm. Codex gpt-5.6-sol is an exact ID (the operator pin in the skill-mesh build-step Codex adapter), not an alias; Codex transcripts were not read."
+    },
+    "reviewer": {
+      "description": "Independent reviewer arm: build-step reviewers and re-dispatch, review-deep non-style lenses, review-gauntlet lenses, and the user-uat --deep assessor",
+      "read_only": false,
+      "claude": {"model": "claude-sonnet-5-5", "effort": "inherit"},
+      "codex": {"model": "inherit", "effort": "inherit"},
+      "claim_id": "registry-reviewer-initial",
+      "evidence": "Alias sonnet resolves to claude-sonnet-5-5: a 2026-11-08 scan of ~/.claude/projects transcripts (message.model field only, 30 days) found it in 1731 subagent transcripts and no other sonnet ID."
+    },
+    "reviewer-style": {
+      "description": "The review-deep Style lens",
+      "read_only": false,
+      "claude": {"model": "claude-haiku-5-5", "effort": "inherit"},
+      "codex": {"model": "inherit", "effort": "inherit"},
+      "claim_id": "registry-reviewer-style-initial",
+      "evidence": "Alias haiku resolves to claude-haiku-5-5: a 2026-11-08 scan of ~/.claude/projects transcripts (message.model field only, 30 days) found it in 225 subagent transcripts, and it is the only haiku ID in the last 5 days. 7 older subagent transcripts (newest 2026-11-03) record claude-haiku-4-5-20251001; metadata alone cannot attribute those to an alias or an explicit pin."
+    },
+    "research-verifier": {
+      "description": "The deep-research verify arms",
+      "read_only": false,
+      "claude": {"model": "claude-sonnet-5-5", "effort": "inherit"},
+      "codex": {"model": "inherit", "effort": "inherit"},
+      "claim_id": "registry-research-verifier-initial",
+      "evidence": "Alias sonnet resolves to claude-sonnet-5-5: a 2026-11-08 scan of ~/.claude/projects transcripts (message.model field only, 30 days) found it in 1731 subagent transcripts and no other sonnet ID. Codex inherit: the caller is a Claude-only workflow script."
+    },
+    "eval-grader": {
+      "description": "The skill-eval-setup grader",
+      "read_only": false,
+      "claude": {"model": "claude-sonnet-5-5", "effort": "inherit"},
+      "codex": {"model": "inherit", "effort": "inherit"},
+      "claim_id": "registry-eval-grader-initial",
+      "evidence": "Alias sonnet resolves to claude-sonnet-5-5: a 2026-11-08 scan of ~/.claude/projects transcripts (message.model field only, 30 days) found it in 1731 subagent transcripts and no other sonnet ID."
+    },
+    "goblin-judge": {
+      "description": "The goblin-suggest judges",
+      "read_only": false,
+      "claude": {"model": "claude-sonnet-5-5", "effort": "inherit"},
+      "codex": {"model": "inherit", "effort": "inherit"},
+      "claim_id": "registry-goblin-judge-initial",
+      "evidence": "Alias sonnet resolves to claude-sonnet-5-5: a 2026-11-08 scan of ~/.claude/projects transcripts (message.model field only, 30 days) found it in 1731 subagent transcripts and no other sonnet ID."
+    },
+    "motion-judge": {
+      "description": "The judge-motion filmstrip judge",
+      "read_only": false,
+      "claude": {"model": "claude-sonnet-5-5", "effort": "inherit"},
+      "codex": {"model": "inherit", "effort": "inherit"},
+      "claim_id": "registry-motion-judge-initial",
+      "evidence": "Alias sonnet resolves to claude-sonnet-5-5: a 2026-11-08 scan of ~/.claude/projects transcripts (message.model field only, 30 days) found it in 1731 subagent transcripts and no other sonnet ID."
+    },
+    "diagnosis": {
+      "description": "The build-step phone-a-friend diagnosis arm",
+      "read_only": false,
+      "claude": {"model": "claude-opus-5-5", "effort": "inherit"},
+      "codex": {"model": "inherit", "effort": "inherit"},
+      "claim_id": "registry-diagnosis-initial",
+      "evidence": "Deliberate change by operator decision R-P7, not alias-preserving: today's model: fable resolves to claude-fable-5-1 (783 subagent transcripts in the 2026-11-08 message.model scan), and Fable is never pinned. Alias opus resolves to claude-opus-5-5 (1827 subagent transcripts, no other opus ID)."
+    },
+    "author": {
+      "description": "Authoring arm: user-brainstorm, the user-learn non-implementation arms, the skill-iterate brainstormer, and the skill-eval-setup bad examples",
+      "read_only": false,
+      "claude": {"model": "claude-sonnet-5-5", "effort": "inherit"},
+      "codex": {"model": "inherit", "effort": "inherit"},
+      "claim_id": "registry-author-initial",
+      "evidence": "Alias sonnet resolves to claude-sonnet-5-5: a 2026-11-08 scan of ~/.claude/projects transcripts (message.model field only, 30 days) found it in 1731 subagent transcripts and no other sonnet ID."
+    },
+    "scanner": {
+      "description": "Read-only scanner: research-prospect, test-prune and the user-debug repro, plus the context-slim, tier-escalate and tier-offload classifiers",
+      "read_only": true,
+      "claude": {"model": "claude-sonnet-5-5", "effort": "inherit"},
+      "codex": {"model": "inherit", "effort": "inherit"},
+      "claim_id": "registry-scanner-initial",
+      "evidence": "Alias sonnet resolves to claude-sonnet-5-5: a 2026-11-08 scan of ~/.claude/projects transcripts (message.model field only, 30 days) found it in 1731 subagent transcripts and no other sonnet ID."
+    },
+    "researcher": {
+      "description": "The deep-research search arms",
+      "read_only": false,
+      "claude": {"model": "claude-sonnet-5-5", "effort": "inherit"},
+      "codex": {"model": "inherit", "effort": "inherit"},
+      "claim_id": "registry-researcher-initial",
+      "evidence": "Alias sonnet resolves to claude-sonnet-5-5: a 2026-11-08 scan of ~/.claude/projects transcripts (message.model field only, 30 days) found it in 1731 subagent transcripts and no other sonnet ID. Codex inherit: the caller is a Claude-only workflow script."
+    },
+    "extractor": {
+      "description": "The deep-research fetch arms",
+      "read_only": false,
+      "claude": {"model": "claude-sonnet-5-5", "effort": "low"},
+      "codex": {"model": "inherit", "effort": "inherit"},
+      "claim_id": "registry-extractor-initial",
+      "evidence": "Alias sonnet resolves to claude-sonnet-5-5: a 2026-11-08 scan of ~/.claude/projects transcripts (message.model field only, 30 days) found it in 1731 subagent transcripts and no other sonnet ID. Effort low keeps the effort the deep-research fetch arms already request. Codex inherit: the caller is a Claude-only workflow script."
+    },
+    "vision-judge": {
+      "description": "The judge-ui vision judge",
+      "read_only": false,
+      "claude": {"model": "claude-opus-5-5", "effort": "inherit"},
+      "codex": {"model": "gpt-5.6-sol", "effort": "inherit"},
+      "claim_id": "registry-vision-judge-initial",
+      "evidence": "Alias opus resolves to claude-opus-5-5: a 2026-11-08 scan of ~/.claude/projects transcripts (message.model field only, 30 days) found it in 1827 subagent transcripts and no other opus ID. Codex gpt-5.6-sol is an exact ID (the skill-mesh judge-ui Codex adapter pin), not an alias."
+    },
+    "final-judge": {
+      "description": "Strong final judge: the user-uat visual final judge and the lesson-harvest strong reviewer",
+      "read_only": false,
+      "claude": {"model": "claude-opus-5-5", "effort": "inherit"},
+      "codex": {"model": "inherit", "effort": "inherit"},
+      "claim_id": "registry-final-judge-initial",
+      "evidence": "Alias opus resolves to claude-opus-5-5: a 2026-11-08 scan of ~/.claude/projects transcripts (message.model field only, 30 days) found it in 1827 subagent transcripts and no other opus ID."
+    }
+  }
+}

@@ -3,7 +3,7 @@
     python -m switchboard judge --site <task_class> [--prompt-file PATH | --prompt STR]
     python -m switchboard bakeoff --suite <path> [--output-dir <dir>]
     python -m switchboard config [--path PATH]
-    python -m switchboard inspect [--path PATH] [--json] [--roles]
+    python -m switchboard inspect [--path PATH] [--registry PATH] [--json] [--roles]
 
 ``--site`` is the canonical flag the wired SKILL.md prose passes (the call-site task_class);
 ``--slice`` is a back-compat alias for the same value. Exactly one must be given.
@@ -22,10 +22,13 @@ grep-able summary line. It is deterministic — no network, no model.
 The ``config`` subcommand resolves + validates the effective config and prints it as JSON —
 the operator's loud "is offload actually on?" pre-flight (the antidote to silent-off).
 
-The ``inspect`` subcommand reports config, per-site effective models, the resolved role pin
-table, and one bounded endpoint probe. ``inspect --roles --json`` prints only the resolved
-role pin table and never probes the endpoint, so an external driver can read pins without
-importing this package. Role pins are report-only: nothing here dispatches by role.
+The ``inspect`` subcommand reports config, per-site effective models, the role registry
+table, and one bounded endpoint probe. ``inspect --roles --json`` prints only the registry
+table (role -> per-host model and effort, plus the cited ``claim_id``) and never probes the
+endpoint, so an external driver can read it without importing this package. The table is read
+from the committed registry (``--registry``, then ``$SWITCHBOARD_REGISTRY``, then the repo
+default); an absent or invalid registry is reported as data with exit 0. Rows are requested
+values only: nothing here dispatches by role.
 
 Contract for the CALLER (a skill):
   * exit code is ALWAYS 0 on a well-formed judge invocation — a ``defer`` is not an error, it
@@ -46,10 +49,10 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal
 
 from switchboard.bakeoff import (
     BakeoffError,
@@ -70,21 +73,28 @@ from switchboard.client import (
 )
 from switchboard.config import (
     ConfigError,
-    RolePin,
     SiteInspection,
     SwitchboardConfig,
     config_source_label,
     inspect_sites,
     load_config,
-    resolve_roles,
 )
 from switchboard.health import EndpointStatus, Health, endpoint_status, health
 from switchboard.metrics import METRICS, Metrics
+from switchboard.registry import (
+    ALLOWED_HOSTS,
+    RegistryResult,
+    RegistryState,
+    RoleRow,
+    load_registry,
+)
 
 # Default output dir for `bakeoff` when --output-dir is omitted: a repo-local _tmp/ sibling.
 DEFAULT_BAKEOFF_OUTPUT = "_tmp"
-# v2 added the ``roles`` table (and the probe-free ``inspect --roles`` view).
-INSPECT_SCHEMA_VERSION = 2
+# v2 added a config-resident ``roles`` table (and the probe-free ``inspect --roles`` view).
+# v3 reads roles from the committed registry: per-host ``model``/``effort`` plus ``claim_id``,
+# with ``registry_state`` (absent | invalid | ok) in place of the roles view's config_state.
+INSPECT_SCHEMA_VERSION = 3
 InspectState = Literal[
     "absent",
     "invalid",
@@ -223,8 +233,6 @@ def _run_config(path: str | None) -> int:
         "warm_timeout_s": config.warm_timeout_s,
         "enabled_call_sites": dict(config.enabled_call_sites),
         "effort": dict(config.effort),
-        "roles": {role: dict(pin) for role, pin in config.roles.items()},
-        "claims": dict(config.claims),
     }
     json.dump(report, sys.stdout, indent=2)
     sys.stdout.write("\n")
@@ -244,7 +252,10 @@ class InspectReport:
     config: dict[str, object] | None
     health: Health | None
     sites: tuple[SiteInspection, ...]
-    roles: tuple[RolePin, ...]
+    registry_state: RegistryState
+    registry_source: str
+    registry_error: str | None
+    roles: tuple[RoleRow, ...]
     error: str | None
     limitations: tuple[str, ...]
 
@@ -259,6 +270,9 @@ class InspectReport:
             "config": self.config,
             "health": self.health,
             "sites": [site.to_json() for site in self.sites],
+            "registry_state": self.registry_state,
+            "registry_source": self.registry_source,
+            "registry_error": self.registry_error,
             "roles": [role.to_json() for role in self.roles],
             "error": self.error,
             "limitations": list(self.limitations),
@@ -269,8 +283,8 @@ _INSPECT_LIMITATIONS = (
     "Endpoint reachability is not bake-off certification or correctness evidence.",
     "A configured effort hint is Claude-side metadata; the local judge client does not consume it.",
     "No outcome or retry evidence is inferred from endpoint health or config state.",
-    "Role pins are report-only: nothing in switchboard dispatches by role, and null means no "
-    "measured pin yet.",
+    "Role rows are requested registry values, not observed dispatches: nothing in switchboard "
+    "dispatches by role, and inherit means the host resolves exactly as it does today.",
 )
 
 
@@ -289,8 +303,15 @@ def _inspect_state(
     return "active-online", "valid"
 
 
-def build_inspect_report(path: str | None = None) -> InspectReport:
-    """Read validated config and one bounded health probe without mutating either system."""
+def build_inspect_report(
+    path: str | None = None, registry_path: str | None = None
+) -> InspectReport:
+    """Read validated config, the registry, and one bounded health probe; mutate nothing.
+
+    The registry is independent of config: an invalid config still reports the role table, and
+    an absent or invalid registry never hides the config and endpoint facts.
+    """
+    registry = load_registry(registry_path)
     source = config_source_label(path)
     try:
         config, source = load_config(path)
@@ -305,7 +326,10 @@ def build_inspect_report(path: str | None = None) -> InspectReport:
             config=None,
             health=None,
             sites=(),
-            roles=(),
+            registry_state=registry.state,
+            registry_source=registry.source,
+            registry_error=registry.error,
+            roles=registry.roles,
             error=str(exc),
             limitations=_INSPECT_LIMITATIONS,
         )
@@ -332,7 +356,10 @@ def build_inspect_report(path: str | None = None) -> InspectReport:
         },
         health=health_result,
         sites=sites,
-        roles=resolve_roles(config),
+        registry_state=registry.state,
+        registry_source=registry.source,
+        registry_error=registry.error,
+        roles=registry.roles,
         error=None,
         limitations=_INSPECT_LIMITATIONS,
     )
@@ -346,70 +373,68 @@ def _print_inspect(report: InspectReport) -> None:
     print(f"  endpoint: {report.endpoint_status}")
     if report.error is not None:
         print(f"  config error: {report.error}")
-        return
-    print(f"  offload active: {report.offload_active}")
-    for site in report.sites:
-        print(
-            f"  site={site.site} enabled={site.site_enabled} "
-            f"effective_model={site.effective_model} effort={site.effort_hint}"
-        )
-    _print_roles([pin.to_json() for pin in report.roles])
+    else:
+        print(f"  offload active: {report.offload_active}")
+        for site in report.sites:
+            print(
+                f"  site={site.site} enabled={site.site_enabled} "
+                f"effective_model={site.effective_model} effort={site.effort_hint}"
+            )
+    print(f"  registry: {report.registry_state}")
+    print(f"  registry source: {report.registry_source}")
+    if report.registry_error is not None:
+        print(f"  registry error: {report.registry_error}")
+    _print_roles(report.roles)
 
 
-def build_roles_report(path: str | None = None) -> dict[str, object]:
-    """The probe-free ``inspect --roles`` view: the resolved role pin table only.
+def build_roles_report(registry_path: str | None = None) -> dict[str, object]:
+    """The probe-free ``inspect --roles`` view: the registry table only.
 
-    Reads and validates config exactly as ``inspect`` does but never calls the endpoint. An
-    invalid config is reported as data (``config_state: invalid``, empty ``roles``), not a
-    crash, so a driver sees the failure instead of an empty pin table that looks unpinned.
+    Reads and validates the registry but never reads config or calls the endpoint. An absent
+    or invalid registry is reported as data (``registry_state``, empty ``roles``, an ``error``),
+    not a crash, so a driver sees the failure instead of an empty table that looks unpinned.
     """
-    source = config_source_label(path)
-    try:
-        config, source = load_config(path)
-    except ConfigError as exc:
-        return {
-            "schema_version": INSPECT_SCHEMA_VERSION,
-            "view": "roles",
-            "config_state": "invalid",
-            "source": source,
-            "roles": [],
-            "error": str(exc),
-        }
+    registry: RegistryResult = load_registry(registry_path)
     return {
         "schema_version": INSPECT_SCHEMA_VERSION,
         "view": "roles",
-        "config_state": "absent" if source == "defaults" else "valid",
-        "source": source,
-        "roles": [role.to_json() for role in resolve_roles(config)],
-        "error": None,
+        "registry_state": registry.state,
+        "source": registry.source,
+        "roles": [role.to_json() for role in registry.roles],
+        "error": registry.error,
     }
 
 
-def _print_roles(rows: Sequence[Mapping[str, object]]) -> None:
+def _print_roles(rows: Sequence[RoleRow]) -> None:
     for row in rows:
-        print(
-            f"  role={row['role']} provider={row['provider']} model={row['model']} "
-            f"tier={row['tier']} claim={row['claim_id']} status={row['claim_status']}"
+        hosts = " ".join(
+            f"{host}={row.host(host).model}/{row.host(host).effort}" for host in ALLOWED_HOSTS
         )
+        print(f"  role={row.role} {hosts} read_only={row.read_only} claim={row.claim_id}")
 
 
-def _run_inspect(path: str | None, json_output: bool, roles_only: bool = False) -> int:
+def _run_inspect(
+    path: str | None,
+    json_output: bool,
+    roles_only: bool = False,
+    registry_path: str | None = None,
+) -> int:
     """Emit an inspect report for all config/endpoint states; invalid is data, not a crash."""
     if roles_only:
-        roles_report = build_roles_report(path)
         if json_output:
-            json.dump(roles_report, sys.stdout, indent=2, sort_keys=True)
+            json.dump(build_roles_report(registry_path), sys.stdout, indent=2, sort_keys=True)
             sys.stdout.write("\n")
             return 0
+        registry = load_registry(registry_path)
         print("== switchboard inspect --roles ==")
-        print(f"  config: {roles_report['config_state']}")
-        print(f"  source: {roles_report['source']}")
-        if roles_report["error"] is not None:
-            print(f"  config error: {roles_report['error']}")
+        print(f"  registry: {registry.state}")
+        print(f"  registry source: {registry.source}")
+        if registry.error is not None:
+            print(f"  registry error: {registry.error}")
             return 0
-        _print_roles(cast("list[Mapping[str, object]]", roles_report["roles"]))
+        _print_roles(registry.roles)
         return 0
-    report = build_inspect_report(path)
+    report = build_inspect_report(path, registry_path)
     if json_output:
         json.dump(report.to_json(), sys.stdout, indent=2, sort_keys=True)
         sys.stdout.write("\n")
@@ -498,7 +523,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     inspect_cmd = sub.add_parser(
         "inspect",
-        help="report config, effective site models, and bounded endpoint health",
+        help="report config, effective site models, the role registry, and endpoint health",
     )
     inspect_cmd.add_argument(
         "--path",
@@ -512,9 +537,16 @@ def _build_parser() -> argparse.ArgumentParser:
         help="write the versioned machine-readable report to stdout",
     )
     inspect_cmd.add_argument(
+        "--registry",
+        dest="registry",
+        default=None,
+        help="read a specific role registry file instead of $SWITCHBOARD_REGISTRY or the "
+        "committed registry/models.json",
+    )
+    inspect_cmd.add_argument(
         "--roles",
         action="store_true",
-        help="report only the resolved role pin table; never probes the endpoint",
+        help="report only the role registry table; never reads config or probes the endpoint",
     )
     return parser
 
@@ -555,7 +587,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_config(args.path)
 
     if args.command == "inspect":
-        return _run_inspect(args.path, args.json, args.roles)
+        return _run_inspect(args.path, args.json, args.roles, args.registry)
 
     # argparse `required=True` on the subparser makes this unreachable, but keep it total.
     parser.error(f"unknown command {args.command!r}")  # pragma: no cover

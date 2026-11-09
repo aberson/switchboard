@@ -10,10 +10,7 @@ import pytest
 
 from switchboard.config import (
     ALLOWED_EFFORT_TIERS,
-    ALLOWED_ROLE_PROVIDERS,
-    ALLOWED_ROLES,
     ALLOWED_TOP_LEVEL_FIELDS,
-    CLAIM_STATUSES,
     CONFIG_DIRECTORY_NAME,
     CONFIG_FILENAME,
     CONFIG_SOURCE_PRECEDENCE,
@@ -24,11 +21,8 @@ from switchboard.config import (
     DEFAULT_WARM_TIMEOUT_S,
     ENV_VAR,
     MIN_MAX_TOKENS,
-    ROLE_PIN_FIELDS,
     ConfigError,
     SwitchboardConfig,
-    load_config,
-    resolve_roles,
 )
 
 CONTRACT_PATH = Path(__file__).parents[1] / "docs" / "observatory-contract.json"
@@ -223,7 +217,7 @@ def test_observatory_contract_matches_config_runtime_facts() -> None:
     config = contract["config"]
     defaults = SwitchboardConfig()
 
-    assert contract["schema_version"] == 1
+    assert contract["schema_version"] == 2
     assert config["directory_name"] == CONFIG_DIRECTORY_NAME
     assert config["filename"] == CONFIG_FILENAME
     assert config["environment_variable"] == ENV_VAR
@@ -234,8 +228,6 @@ def test_observatory_contract_matches_config_runtime_facts() -> None:
         "less_token_mode": defaults.less_token_mode,
         "enabled_call_sites": defaults.enabled_call_sites,
         "effort": defaults.effort,
-        "roles": defaults.roles,
-        "claims": defaults.claims,
         "base_url": DEFAULT_BASE_URL,
         "model": DEFAULT_MODEL,
         "cold_timeout_s": DEFAULT_COLD_TIMEOUT_S,
@@ -245,161 +237,18 @@ def test_observatory_contract_matches_config_runtime_facts() -> None:
     validation = config["validation"]
     assert validation["max_tokens_minimum"] == MIN_MAX_TOKENS
     assert validation["allowed_effort_tiers"] == sorted(ALLOWED_EFFORT_TIERS)
-    assert validation["allowed_roles"] == list(ALLOWED_ROLES)
-    assert validation["role_pin_fields"] == list(ROLE_PIN_FIELDS)
-    assert validation["allowed_role_providers"] == sorted(ALLOWED_ROLE_PROVIDERS)
-    assert validation["claim_statuses"] == list(CLAIM_STATUSES)
+    assert validation["retired_fields"] == ["roles", "claims"]
+    assert not set(validation["retired_fields"]) & ALLOWED_TOP_LEVEL_FIELDS
+    # The role fields left config for the registry section (tests/test_registry.py).
+    assert not {"allowed_roles", "role_pin_fields", "claim_statuses"} & set(validation)
 
 
-# --- Role pin table: config-only, report-only (skill-mesh v3 lane-6 step c) --------------
-
-_CLAIM = "tier-judging-lens-style-v0"
+# --- Retired role pin table: roles and claims moved to the committed registry -------------
 
 
-def _pinned_config() -> dict[str, object]:
-    return {
-        "claims": {_CLAIM: "ASSERTED"},
-        "roles": {
-            "reviewer": {
-                "provider": "claude",
-                "model": "claude-opus-5-5",
-                "tier": "xhigh",
-                "claim_id": _CLAIM,
-            },
-            "builder": {"provider": None, "model": None, "tier": None, "claim_id": None},
-        },
-    }
-
-
-def test_role_vocabulary_pinned() -> None:
-    # A silent expansion/contraction of the role set must be a conscious, reviewed change.
-    assert ALLOWED_ROLES == (
-        "author",
-        "lens",
-        "reviewer",
-        "delta_reviewer",
-        "packager",
-        "builder",
-        "verifier_contract",
-        "verifier_host",
-        "final_judge",
-        "driver",
-    )
-    assert ROLE_PIN_FIELDS == ("provider", "model", "tier", "claim_id")
-    assert {"roles", "claims"} <= ALLOWED_TOP_LEVEL_FIELDS
-
-
-def test_defaults_resolve_every_role_to_all_null() -> None:
-    rows = resolve_roles(SwitchboardConfig())
-    assert [row.role for row in rows] == list(ALLOWED_ROLES)
-    for row in rows:
-        assert row.configured is False
-        assert (row.provider, row.model, row.tier, row.claim_id, row.claim_status) == (
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
-
-
-def test_roles_round_trip_through_from_mapping_and_resolve() -> None:
-    cfg = SwitchboardConfig.from_mapping(_pinned_config())
-    by_role = {row.role: row for row in resolve_roles(cfg)}
-
-    reviewer = by_role["reviewer"]
-    assert reviewer.configured is True
-    assert reviewer.provider == "claude"
-    assert reviewer.model == "claude-opus-5-5"
-    assert reviewer.tier == "xhigh"
-    assert reviewer.claim_id == _CLAIM
-    assert reviewer.claim_status == "ASSERTED"
-
-    # Explicit all-null entry: configured, but no measured pin, and no default substituted.
-    builder = by_role["builder"]
-    assert builder.configured is True
-    assert builder.model is None and builder.provider is None and builder.claim_status is None
-
-    # An omitted role is unconfigured and also all-null; the default local model never leaks in.
-    assert by_role["author"].configured is False
-    assert by_role["author"].model is None
-
-
-def test_roles_omitted_pin_keys_read_as_null() -> None:
-    cfg = SwitchboardConfig(roles={"lens": {"provider": "local"}})
-    lens = {row.role: row for row in resolve_roles(cfg)}["lens"]
-    assert lens.provider == "local"
-    assert (lens.model, lens.tier, lens.claim_id) == (None, None, None)
-
-
-def test_roles_round_trip_through_load_config(tmp_path: Path) -> None:
-    path = tmp_path / "roles.json"
-    path.write_text(json.dumps(_pinned_config()), encoding="utf-8")
-    cfg, source = load_config(str(path))
-    assert source == f"arg:{path}"
-    assert cfg.roles == _pinned_config()["roles"]
-    assert cfg.claims == {_CLAIM: "ASSERTED"}
-
-
-def test_role_claim_id_naming_missing_claim_is_rejected() -> None:
-    # Red-on-garbage: a pin cannot cite evidence the config does not carry.
-    with pytest.raises(ConfigError, match="names no claim"):
-        SwitchboardConfig(
-            roles={"reviewer": {"claim_id": "no-such-claim"}},
-            claims={_CLAIM: "MEASURED"},
-        )
-
-
-def test_role_claim_id_with_empty_claims_map_is_rejected() -> None:
-    with pytest.raises(ConfigError, match="names no claim"):
-        SwitchboardConfig.from_mapping({"roles": {"final_judge": {"claim_id": _CLAIM}}})
-
-
-@pytest.mark.parametrize("bad_role", ["Reviewer", "coordinator", "style-lens", ""])
-def test_unknown_role_name_is_rejected(bad_role: str) -> None:
-    # Red-on-garbage: an unknown role name fails by name, never silently ignored.
-    with pytest.raises(ConfigError, match="unknown role"):
-        SwitchboardConfig.from_mapping({"roles": {bad_role: {}}})
-
-
-def test_unknown_role_pin_key_is_rejected() -> None:
-    with pytest.raises(ConfigError, match="unknown key"):
-        SwitchboardConfig(roles={"reviewer": {"provider": "claude", "effort": "low"}})
-
-
-@pytest.mark.parametrize("bad_provider", ["gpt", "Claude", "", 1, ["claude"]])
-def test_bad_role_provider_is_rejected(bad_provider: object) -> None:
-    with pytest.raises(ConfigError, match="provider"):
-        SwitchboardConfig.from_mapping({"roles": {"reviewer": {"provider": bad_provider}}})
-
-
-@pytest.mark.parametrize("bad_tier", ["opus", "LOW", "", 3])
-def test_bad_role_tier_is_rejected(bad_tier: object) -> None:
-    with pytest.raises(ConfigError, match="tier"):
-        SwitchboardConfig.from_mapping({"roles": {"reviewer": {"tier": bad_tier}}})
-
-
-def test_unsafe_role_model_is_rejected() -> None:
-    with pytest.raises(ConfigError, match="model"):
-        SwitchboardConfig(roles={"builder": {"model": "../../etc/passwd"}})
-
-
-@pytest.mark.parametrize(
-    "bad",
-    [
-        {"roles": ["reviewer"]},
-        {"roles": {"reviewer": "claude"}},
-        {"claims": ["c1"]},
-        {"claims": {"c1": "VERIFIED"}},
-        {"claims": {"c1": "measured"}},
-        {"claims": {"bad claim": "MEASURED"}},
-    ],
-)
-def test_malformed_roles_or_claims_shape_is_rejected(bad: dict[str, object]) -> None:
-    with pytest.raises(ConfigError):
-        SwitchboardConfig.from_mapping(bad)
-
-
-def test_from_mapping_still_rejects_unknown_keys_next_to_roles() -> None:
-    with pytest.raises(ConfigError, match="unknown config key"):
-        SwitchboardConfig.from_mapping({**_pinned_config(), "pins": {}})
+@pytest.mark.parametrize("key", ["roles", "claims"])
+def test_retired_roles_and_claims_keys_are_unknown(key: str) -> None:
+    # A config still carrying the pre-registry table fails by name, never silently ignored.
+    with pytest.raises(ConfigError, match="unknown config key") as exc:
+        SwitchboardConfig.from_mapping({"less_token_mode": True, key: {}})
+    assert repr(key) in str(exc.value)

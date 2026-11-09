@@ -11,17 +11,34 @@ Like test_client, network is stubbed (patch_client) — these tests never call t
 
 from __future__ import annotations
 
+import copy
 import json
 import urllib.error
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 
-from switchboard.cli import INSPECT_SCHEMA_VERSION, INSPECT_STATES, main, run_judge
-from switchboard.config import ALLOWED_ROLES, ROLE_PIN_FIELDS, SwitchboardConfig
+from switchboard.cli import (
+    INSPECT_SCHEMA_VERSION,
+    INSPECT_STATES,
+    build_inspect_report,
+    build_roles_report,
+    main,
+    run_judge,
+)
+from switchboard.config import SwitchboardConfig
 from switchboard.health import ENDPOINT_STATUSES
 from switchboard.metrics import METRICS, Metrics
+from switchboard.registry import (
+    ALLOWED_HOSTS,
+    ALLOWED_ROLES,
+    HOST_PIN_FIELDS,
+    REGISTRY_ENV_VAR,
+    REGISTRY_STATES,
+    ROLE_JSON_FIELDS,
+)
 from tests.conftest import (
     PASS_CONTENT,
     chat_envelope,
@@ -41,6 +58,7 @@ def _isolate_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     absent home this fixture installs).
     """
     monkeypatch.delenv("SWITCHBOARD_CONFIG", raising=False)
+    monkeypatch.delenv(REGISTRY_ENV_VAR, raising=False)
     monkeypatch.setattr("switchboard.config._default_config_path", lambda: tmp_path / "absent.json")
 
 
@@ -423,14 +441,21 @@ def test_inspect_json_reports_effective_model_effort_and_active_online_state(
     assert "not bake-off certification" in report["limitations"][0]
 
 
-def test_observatory_contract_matches_inspect_runtime_shape() -> None:
+def test_observatory_contract_matches_inspect_runtime_shape(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     contract_path = Path(__file__).parents[1] / "docs" / "observatory-contract.json"
     contract = json.loads(contract_path.read_text(encoding="utf-8"))
     inspect_contract = contract["inspect"]
+    monkeypatch.setattr("switchboard.cli.health", lambda config: _offline_health())
 
-    assert inspect_contract["schema_version"] == INSPECT_SCHEMA_VERSION
+    assert inspect_contract["schema_version"] == INSPECT_SCHEMA_VERSION == 3
     assert inspect_contract["states"] == list(INSPECT_STATES)
     assert inspect_contract["endpoint_statuses"] == list(ENDPOINT_STATUSES)
+    assert inspect_contract["registry_states"] == list(REGISTRY_STATES)
+    # Key sets of the real reports, not copies: a field added to either report fails here.
+    assert inspect_contract["report_fields"] == list(build_inspect_report().to_json())
+    assert inspect_contract["roles_view_fields"] == list(build_roles_report())
     assert inspect_contract["site_fields"] == [
         "site",
         "configured_value",
@@ -441,35 +466,31 @@ def test_observatory_contract_matches_inspect_runtime_shape() -> None:
         "offload_allowed",
         "effort_hint",
     ]
-    assert inspect_contract["role_fields"] == [
-        "role",
-        "configured",
-        *ROLE_PIN_FIELDS,
-        "claim_status",
-    ]
+    assert inspect_contract["role_fields"] == list(ROLE_JSON_FIELDS)
+    assert inspect_contract["role_host_fields"] == list(HOST_PIN_FIELDS)
+    row = build_roles_report()["roles"][0]  # type: ignore[index]
+    assert list(row) == inspect_contract["role_fields"]
+    for host in ALLOWED_HOSTS:
+        assert list(row[host]) == inspect_contract["role_host_fields"]
 
 
-# --- inspect --roles --json: report-only role pin table for an external driver -------------
+# --- inspect --roles --json: the committed registry table for an external driver ----------
 
-_ROLES_CONFIG = {
-    "less_token_mode": True,
-    "enabled_call_sites": {"review-deep-style": True},
-    "claims": {"lens-style-claim": "PARTIAL"},
-    "roles": {
-        "lens": {
-            "provider": "local",
-            "model": "other-local-model",
-            "tier": "low",
-            "claim_id": "lens-style-claim",
-        },
-        "driver": {"provider": None, "model": None, "tier": None, "claim_id": None},
-    },
-}
+_COMMITTED_REGISTRY = Path(__file__).parents[1] / "registry" / "models.json"
+_CONTRACT = json.loads(
+    (Path(__file__).parents[1] / "docs" / "observatory-contract.json").read_text(encoding="utf-8")
+)["inspect"]
 
 
-def _write_roles_config(tmp_path: Path, data: object = None) -> Path:
-    path = tmp_path / "roles.json"
-    path.write_text(json.dumps(_ROLES_CONFIG if data is None else data), encoding="utf-8")
+def _registry_doc() -> dict[str, Any]:
+    doc = json.loads(_COMMITTED_REGISTRY.read_text(encoding="utf-8"))
+    assert isinstance(doc, dict)
+    return copy.deepcopy(doc)
+
+
+def _write_registry(tmp_path: Path, doc: object, name: str = "models.json") -> Path:
+    path = tmp_path / name
+    path.write_text(json.dumps(doc), encoding="utf-8")
     return path
 
 
@@ -477,164 +498,225 @@ def _no_probe(config: SwitchboardConfig) -> object:
     raise AssertionError(f"inspect --roles must not probe the endpoint: {config}")
 
 
-def test_inspect_roles_json_prints_resolved_table_without_probe(
+def _roles_json(capsys: pytest.CaptureFixture[str], *argv: str) -> tuple[int, dict[str, Any]]:
+    rc = main(["inspect", "--roles", "--json", *argv])
+    report = json.loads(capsys.readouterr().out)
+    assert isinstance(report, dict)
+    return rc, report
+
+
+def test_inspect_roles_json_prints_the_committed_registry_without_probe_or_config(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    path = _write_roles_config(tmp_path)
+    # A broken config must not matter: the roles view reads only the registry.
+    broken = tmp_path / "broken.json"
+    broken.write_text("{not json", encoding="utf-8")
+    monkeypatch.setenv("SWITCHBOARD_CONFIG", str(broken))
     monkeypatch.setattr("switchboard.cli.health", _no_probe)
 
-    rc = main(["inspect", "--roles", "--json", "--path", str(path)])
-    report = json.loads(capsys.readouterr().out)
+    rc, report = _roles_json(capsys)
 
     assert rc == 0
-    contract = json.loads(
-        (Path(__file__).parents[1] / "docs" / "observatory-contract.json").read_text(
-            encoding="utf-8"
-        )
-    )["inspect"]
-    assert sorted(report) == sorted(contract["roles_view_fields"])
-    assert report["schema_version"] == INSPECT_SCHEMA_VERSION
+    assert report["schema_version"] == INSPECT_SCHEMA_VERSION == 3
     assert report["view"] == "roles"
-    assert report["config_state"] == "valid"
-    assert report["source"] == f"arg:{path}"
+    assert report["registry_state"] == "ok"
+    assert report["source"] == f"repo:{_COMMITTED_REGISTRY.resolve()}"
     assert report["error"] is None
     assert [row["role"] for row in report["roles"]] == list(ALLOWED_ROLES)
-    for row in report["roles"]:
-        assert sorted(row) == sorted(contract["role_fields"])
-
-    by_role = {row["role"]: row for row in report["roles"]}
-    assert by_role["lens"] == {
-        "role": "lens",
-        "configured": True,
-        "provider": "local",
-        "model": "other-local-model",
-        "tier": "low",
-        "claim_id": "lens-style-claim",
-        "claim_status": "PARTIAL",
-    }
-    assert by_role["driver"]["configured"] is True
-    assert by_role["driver"]["model"] is None
-    # Unconfigured role: all null, and the default local model is NOT substituted.
-    assert by_role["builder"] == {
-        "role": "builder",
-        "configured": False,
-        "provider": None,
-        "model": None,
-        "tier": None,
-        "claim_id": None,
-        "claim_status": None,
-    }
 
 
-def test_inspect_roles_json_absent_config_is_all_null(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+def _invalid_registry(tmp_path: Path) -> Path:
+    """The one invalid registry the CLI tests share: a bare alias on one row.
+
+    The validation rules themselves are covered in test_registry.py; the CLI tests ask only
+    whether an invalid registry reaches each read view as data.
+    """
+    doc = _registry_doc()
+    doc["roles"]["reviewer"]["claude"]["model"] = "sonnet"
+    return _write_registry(tmp_path, doc, name="invalid-models.json")
+
+
+def test_inspect_roles_json_reports_an_invalid_registry_as_data(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    monkeypatch.setattr("switchboard.cli.health", _no_probe)
-    rc = main(["inspect", "--roles", "--json"])
-    report = json.loads(capsys.readouterr().out)
-
-    assert rc == 0
-    assert report["config_state"] == "absent"
-    assert report["source"] == "defaults"
-    assert all(row["configured"] is False and row["model"] is None for row in report["roles"])
-
-
-@pytest.mark.parametrize(
-    ("bad", "needle"),
-    [
-        ({"roles": {"reviewer": {"claim_id": "missing-claim"}}}, "names no claim"),
-        ({"roles": {"coordinator": {}}}, "unknown role"),
-    ],
-)
-def test_inspect_roles_json_reports_invalid_pins_as_data(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-    capsys: pytest.CaptureFixture[str],
-    bad: dict[str, object],
-    needle: str,
-) -> None:
-    # Red-on-garbage at the read verb: a bad pin surfaces as invalid, never as an empty
-    # table that a driver would read as "nothing pinned".
-    path = _write_roles_config(tmp_path, bad)
+    # Red-on-garbage at the read verb: a bad row surfaces as invalid with exit 0, never as an
+    # empty table that a driver would read as "nothing pinned".
     monkeypatch.setattr("switchboard.cli.health", _no_probe)
 
-    rc = main(["inspect", "--roles", "--json", "--path", str(path)])
-    report = json.loads(capsys.readouterr().out)
+    rc, report = _roles_json(capsys, "--registry", str(_invalid_registry(tmp_path)))
 
     assert rc == 0
-    assert report["config_state"] == "invalid"
+    assert report["registry_state"] == "invalid"
+    assert report["schema_version"] == 3
     assert report["roles"] == []
-    assert needle in report["error"]
+    assert "bare alias" in report["error"]
+
+
+def test_inspect_roles_json_reports_an_absent_registry(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    missing = tmp_path / "missing.json"
+    rc, report = _roles_json(capsys, "--registry", str(missing))
+
+    assert rc == 0
+    assert report["registry_state"] == "absent"
+    assert report["source"] == f"arg:{missing}"
+    assert report["roles"] == []
+    assert "not found" in report["error"]
 
 
 def test_inspect_roles_human_output_lists_every_role(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    path = _write_roles_config(tmp_path)
     monkeypatch.setattr("switchboard.cli.health", _no_probe)
 
-    rc = main(["inspect", "--roles", "--path", str(path)])
+    rc = main(["inspect", "--roles"])
     out = capsys.readouterr().out
 
     assert rc == 0
+    assert "registry: ok" in out
+    assert "  registry source: " in out
     for role in ALLOWED_ROLES:
         assert f"role={role} " in out
-    assert "role=lens provider=local model=other-local-model tier=low" in out
+    assert "role=builder claude=inherit/inherit codex=gpt-5.6-sol/medium" in out
 
 
-def test_full_inspect_json_carries_roles_table(
+def test_inspect_roles_human_output_reports_invalid_registry(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    rc = main(["inspect", "--roles", "--registry", str(_invalid_registry(tmp_path))])
+    out = capsys.readouterr().out
+
+    assert rc == 0
+    assert "registry: invalid" in out
+    assert "  registry error: " in out
+    assert "role=" not in out
+
+
+def test_plain_inspect_text_prints_the_registry_even_when_config_is_broken(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    path = _write_roles_config(tmp_path)
+    # The human render of the full inspect report: a broken config must not hide the registry
+    # lines or the role table (no early return in the config-error branch).
+    broken = tmp_path / "broken.json"
+    broken.write_text("{not json", encoding="utf-8")
+    monkeypatch.setattr("switchboard.cli.health", _no_probe)
+
+    rc = main(["inspect", "--path", str(broken)])
+    out = capsys.readouterr().out
+
+    assert rc == 0
+    assert "== switchboard inspect ==" in out
+    assert "  state: invalid" in out
+    assert "  config error: " in out
+    assert "  registry: ok" in out
+    assert f"  registry source: repo:{_COMMITTED_REGISTRY.resolve()}" in out
+    for role in ALLOWED_ROLES:
+        assert f"role={role} " in out
+
+
+def test_full_inspect_json_carries_the_registry_table(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    config = tmp_path / "active.json"
+    config.write_text(
+        json.dumps({"enabled_call_sites": {"review-deep-style": True}}), encoding="utf-8"
+    )
     monkeypatch.setattr("switchboard.cli.health", lambda config: _offline_health())
 
-    rc = main(["inspect", "--json", "--path", str(path)])
+    rc = main(["inspect", "--json", "--path", str(config)])
     report = json.loads(capsys.readouterr().out)
 
     assert rc == 0
     assert report["schema_version"] == INSPECT_SCHEMA_VERSION
+    assert sorted(report) == sorted(_CONTRACT["report_fields"])
+    assert report["registry_state"] == "ok"
+    assert report["registry_error"] is None
     assert [row["role"] for row in report["roles"]] == list(ALLOWED_ROLES)
-    assert any("Role pins are report-only" in line for line in report["limitations"])
-    # The role pin never changes the per-site effective model: sites still use the default.
+    assert any("Role rows are requested registry values" in line for line in report["limitations"])
+    # The registry never changes the per-site effective model: sites still use the default.
     assert report["sites"][0]["effective_model"] == "coder-30b"
 
 
-def test_config_subcommand_round_trips_roles_and_claims(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    path = _write_roles_config(tmp_path)
-    rc = main(["config", "--path", str(path)])
-    report = json.loads(capsys.readouterr().out)
-
-    assert rc == 0
-    assert report["roles"] == _ROLES_CONFIG["roles"]
-    assert report["claims"] == _ROLES_CONFIG["claims"]
-
-
-def test_judge_ignores_role_pins(
+def test_full_inspect_keeps_config_and_registry_failures_separate(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    # local_judge must not act on roles: a lens pin naming another model leaves the request
-    # model, timeout, and verdict path exactly as the site config dictates.
-    path = _write_roles_config(tmp_path)
+    broken = tmp_path / "broken.json"
+    broken.write_text("{not json", encoding="utf-8")
+    monkeypatch.setattr("switchboard.cli.health", _no_probe)
+
+    # Invalid config, ok registry: the role table is still reported.
+    rc = main(["inspect", "--json", "--path", str(broken)])
+    report = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert report["state"] == "invalid"
+    assert report["registry_state"] == "ok"
+    assert len(report["roles"]) == len(ALLOWED_ROLES)
+
+    # Absent config, invalid registry: config facts survive and the registry error is named.
+    monkeypatch.setattr("switchboard.cli.health", lambda config: _offline_health())
+    rc = main(["inspect", "--json", "--registry", str(_invalid_registry(tmp_path))])
+    report = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert report["state"] == "absent"
+    assert report["registry_state"] == "invalid"
+    assert report["roles"] == []
+    assert report["registry_error"]
+
+
+# --- The retired config keys: roles and claims are unknown keys now ------------------------
+
+
+@pytest.mark.parametrize("key", ["roles", "claims"])
+def test_config_subcommand_fails_on_a_retired_key_naming_it(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], key: str
+) -> None:
+    path = tmp_path / "retired.json"
+    path.write_text(
+        json.dumps({"enabled_call_sites": {"review-deep-style": True}, key: {}}),
+        encoding="utf-8",
+    )
+
+    rc = main(["config", "--path", str(path)])
+    captured = capsys.readouterr()
+
+    assert rc != 0
+    assert captured.out == ""
+    assert "unknown config key" in captured.err
+    assert repr(key) in captured.err
+
+
+def test_judge_with_a_retired_roles_config_still_defers_exit_0(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = tmp_path / "retired.json"
+    path.write_text(
+        json.dumps(
+            {
+                "enabled_call_sites": {"review-deep-style": True},
+                "roles": {"reviewer": {"provider": "claude", "model": None}},
+                "claims": {"c1": "MEASURED"},
+            }
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.setenv("SWITCHBOARD_CONFIG", str(path))
-    captured: dict[str, object] = {}
-
-    def _capturing(req: object, timeout: float | None = None):  # type: ignore[no-untyped-def]
-        captured["body"] = json.loads(req.data)  # type: ignore[attr-defined]
-        captured["timeout"] = timeout
-        from tests.conftest import _FakeResponse
-
-        return _FakeResponse(json.dumps(chat_envelope(PASS_CONTENT)).encode("utf-8"))
-
-    monkeypatch.setattr("switchboard.client.urllib.request.urlopen", _capturing)
 
     rc = main(["judge", "--site", "review-deep-style", "--prompt", "judge this"])
-    result = json.loads(capsys.readouterr().out)
+    captured = capsys.readouterr()
+    out = json.loads(captured.out)
 
     assert rc == 0
-    assert result["verdict"] == "pass"
-    body = captured["body"]
-    assert isinstance(body, dict)
-    assert body["model"] == "coder-30b"
-    assert captured["timeout"] == SwitchboardConfig().warm_timeout_s
+    assert out["defer"] is True
+    assert out["reason_class"] == "config_error"
+    assert "roles" in captured.err
+
+
+def test_config_subcommand_report_has_no_roles_or_claims(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    rc = main(["config"])
+    report = json.loads(capsys.readouterr().out)
+    assert rc == 0
+    assert "roles" not in report
+    assert "claims" not in report

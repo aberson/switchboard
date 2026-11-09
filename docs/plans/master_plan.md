@@ -1477,6 +1477,7 @@ measure-twice build or release.
   The contract drift test fails on any field change. `dependencies = []` is unchanged. The cross-package
   checks in Testing strategy pass.
 - **Depends on:** none
+- **Status:** DONE (2026-11-08)
 
 ### Step R2: apply generates Claude and Codex role definitions under an ownership ledger
 - **Problem:** Turn the registry into host-native role files that a dispatch by name picks up, without

@@ -18,12 +18,22 @@ Built to the D1 contract pinned in
 - `switchboard/config.py` — `SwitchboardConfig`: the `less_token_mode` global toggle, the
   `enabled_call_sites` (`task_class -> bool | model`) map, the `effort` (`task_class -> tier`)
   map (config-only — a Claude-side dispatch hint switchboard validates + round-trips but does
-  NOT act on; `local_judge` ignores it), the report-only `roles` pin table
-  (`role -> {provider, model, tier, claim_id}`, every value nullable, null = no measured pin yet)
-  with the `claims` map (`claim_id -> MEASURED|PARTIAL|ASSERTED|STALE`) a pin must cite, and
-  endpoint/timeout/`max_tokens` defaults (validated at construction). `load_config()` resolves an operator config
+  NOT act on; `local_judge` ignores it), and endpoint/timeout/`max_tokens` defaults (validated at
+  construction). `load_config()` resolves an operator config
   (explicit arg → `$SWITCHBOARD_CONFIG` → `~/.switchboard/config.json` → inert defaults) and
   `from_mapping()` rejects unknown keys with a clean `ConfigError` (see "Turning offload on/off").
+  The retired `roles` and `claims` keys are unknown keys: roles live in the registry below.
+- `registry/models.json` + `switchboard/registry.py` — the committed model registry (schema v1):
+  one row per role with, for each host (`claude`, `codex`), an exact model ID or `inherit` and an
+  effort level or `inherit`, plus `description`, `read_only`, the cited measure-twice `claim_id`
+  and an optional `evidence` note. `inherit` means no key is written, so the host resolves as it
+  does today. `load_registry()` resolves `--registry <path>` → `$SWITCHBOARD_REGISTRY` → the
+  committed file and never raises: a missing file is `absent`, a bad one `invalid`. Validation
+  rejects bare aliases (`haiku|sonnet|opus|fable`) and any model without a digit, any model
+  containing `fable` in any case (Fable is never pinned), unknown or missing roles and hosts,
+  and an effort the row's host lacks (Claude rows use `ALLOWED_EFFORT_TIERS`; Codex rows use
+  `ALLOWED_CODEX_EFFORT_TIERS`, the levels codex-cli 0.147.0 advertises). A model swap is a
+  reviewed commit to this file.
 - `switchboard/health.py` — `health()` / `is_warm()` / `warm_up()` reachability + warmth
   probes against `{base_url}/models`.
 - `switchboard/metrics.py` — `Metrics`: in-process counter (total / verdicts / defers-by-
@@ -46,11 +56,14 @@ Built to the D1 contract pinned in
   selected config source, inactive/active state, effective model and `effort` hint per configured
   site, plus one bounded endpoint probe. Endpoint reachability is not quality or certification
   evidence; `effort` is Claude-side metadata only and is not consumed by the local client.
-- `uv run python -m switchboard inspect --roles --json` prints only the resolved role pin table
-  (all ten roles, nulls for unpinned) and never probes the endpoint, so an external driver can
-  read pins without importing this package. Pins are report-only: nothing in switchboard,
-  including `local_judge`, dispatches by role. An unknown role, an unknown pin key, or a
-  `claim_id` absent from `claims` makes the config invalid, reported as `config_state: invalid`.
+- `uv run python -m switchboard inspect --roles --json` prints only the registry table
+  (`schema_version` 3; one row per role with `claude` and `codex` `{model, effort}`, `claim_id`,
+  `read_only`, `description` and `evidence`). It never reads config or probes the endpoint, so an
+  external driver can read the table without importing this package. `--registry <path>` reads a
+  candidate file. `registry_state` is `ok`, `absent` or `invalid` (with `error`), always exit 0.
+  Rows are requested values: nothing in switchboard, including `local_judge`, dispatches by role.
+  `inspect --json` carries the same rows plus `registry_state`, `registry_source` and
+  `registry_error`.
 - `uv run python -m switchboard config` is the loud validation pre-flight. It resolves and validates
   config without probing or starting the endpoint. Use `--path` before installing a candidate file.
 - `uv run python -m switchboard bakeoff --suite suites\review-deep-style.json --output-dir _tmp`

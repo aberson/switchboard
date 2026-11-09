@@ -8,9 +8,10 @@ Holds the offload-core knobs:
   allowed to offload locally, and (optionally) pinning a model per call site.
 * endpoint ``base_url`` + ``model`` + ``cold_timeout_s`` / ``warm_timeout_s`` / ``max_tokens``
   with the spike-pinned defaults.
-* ``roles`` + ``claims`` — a report-only ``role -> {provider, model, tier, claim_id}`` pin table
-  and the measure-twice claim ids it may cite. Nothing in this package acts on either; they
-  exist so an external driver can read pins through ``inspect --roles --json``.
+
+The role -> per-host model and effort table is NOT config: it lives in the committed registry
+(``switchboard/registry/models.json``, read by ``switchboard.registry``). A config file that
+still carries the retired ``roles`` or ``claims`` keys fails as an unknown key.
 
 All values are light-validated at construction (``__post_init__``) so a malformed config
 fails loudly at the boundary rather than silently producing a bad request later.
@@ -51,6 +52,10 @@ _BASE_URL_RE = re.compile(r"^https?://[A-Za-z0-9._:\-]+(?:/[A-Za-z0-9._\-/]*)?$"
 # no shell/URL metacharacters). Keeps a hostile config value from leaking into the request
 # body or being mistaken for a path.
 _SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9._\-]+$")
+# The public name sibling modules import (switchboard.registry checks model IDs and claim ids
+# with it). The same compiled object as ``_SAFE_NAME_RE``, which stays because measure-twice
+# imports the private name.
+SAFE_NAME_RE = _SAFE_NAME_RE
 
 # The reasoning-effort tiers a Claude-side sub-agent dispatch (Workflow/Agent reasoning_effort)
 # can be set to. This is the ONLY value set the ``effort`` map accepts. See the honest-scope
@@ -58,32 +63,6 @@ _SAFE_NAME_RE = re.compile(r"^[A-Za-z0-9._\-]+$")
 # dimension but does NOT act on it — the local_judge urllib client has no effort knob; effort
 # is consumed Claude-side when dispatching the slice's sub-agents, not by the local endpoint.
 ALLOWED_EFFORT_TIERS: frozenset[str] = frozenset({"low", "medium", "high", "xhigh", "max"})
-
-# --- Role pin table (report-only; skill-mesh v3 lane-6 groundwork step c) ------------------
-# The role vocabulary the ``roles`` map accepts. Order is the stable order ``resolve_roles``
-# reports in. A role absent from the config still appears in the resolved table with every
-# value null: null means "no measured pin yet", never "use some default".
-ALLOWED_ROLES: tuple[str, ...] = (
-    "author",
-    "lens",
-    "reviewer",
-    "delta_reviewer",
-    "packager",
-    "builder",
-    "verifier_contract",
-    "verifier_host",
-    "final_judge",
-    "driver",
-)
-# The keys one role entry may carry. Each may be null or omitted (omitted reads as null);
-# any other key is rejected.
-ROLE_PIN_FIELDS: tuple[str, ...] = ("provider", "model", "tier", "claim_id")
-# Hosts a pinned role can be dispatched on. ``local`` is the switchboard endpoint; the
-# Claude/Codex values are dispatch hints for an external driver, never a network call here.
-ALLOWED_ROLE_PROVIDERS: frozenset[str] = frozenset({"claude", "codex", "local"})
-# Evidence states a cited claim can be in. Mirrors measure-twice's ledger ``ClaimStatus``
-# (switchboard is zero-dependency, so it cannot import it; measure-twice imports switchboard).
-CLAIM_STATUSES: tuple[str, ...] = ("MEASURED", "PARTIAL", "ASSERTED", "STALE")
 
 
 class ConfigError(ValueError):
@@ -99,58 +78,6 @@ def _validate_name(value: object, label: str) -> str:
             f"(allowed: letters, digits, '.', '_', '-')"
         )
     return value
-
-
-def _validate_claims(claims: object) -> None:
-    if not isinstance(claims, dict):
-        raise ConfigError(f"claims must be an object of claim_id -> status, got {claims!r}")
-    for claim_id, status in claims.items():
-        _validate_name(claim_id, "claim_id")
-        if not isinstance(status, str) or status not in CLAIM_STATUSES:
-            raise ConfigError(
-                f"claims[{claim_id!r}] must be one of {list(CLAIM_STATUSES)}, got {status!r}"
-            )
-
-
-def _validate_roles(roles: object, claims: Mapping[str, str]) -> None:
-    if not isinstance(roles, dict):
-        raise ConfigError(f"roles must be an object of role -> pin, got {roles!r}")
-    for role, pin in roles.items():
-        if role not in ALLOWED_ROLES:
-            raise ConfigError(f"unknown role {role!r}; allowed: {list(ALLOWED_ROLES)}")
-        if not isinstance(pin, dict):
-            raise ConfigError(f"roles[{role!r}] must be an object, got {pin!r}")
-        unknown = set(pin) - set(ROLE_PIN_FIELDS)
-        if unknown:
-            raise ConfigError(
-                f"roles[{role!r}] has unknown key(s) {sorted(unknown)}; "
-                f"allowed: {list(ROLE_PIN_FIELDS)}"
-            )
-        provider = pin.get("provider")
-        if provider is not None and (
-            not isinstance(provider, str) or provider not in ALLOWED_ROLE_PROVIDERS
-        ):
-            raise ConfigError(
-                f"roles[{role!r}].provider must be null or one of "
-                f"{sorted(ALLOWED_ROLE_PROVIDERS)}, got {provider!r}"
-            )
-        model = pin.get("model")
-        if model is not None:
-            _validate_name(model, f"roles[{role!r}].model")
-        tier = pin.get("tier")
-        if tier is not None and (not isinstance(tier, str) or tier not in ALLOWED_EFFORT_TIERS):
-            raise ConfigError(
-                f"roles[{role!r}].tier must be null or one of {sorted(ALLOWED_EFFORT_TIERS)}, "
-                f"got {tier!r}"
-            )
-        claim_id = pin.get("claim_id")
-        if claim_id is not None:
-            _validate_name(claim_id, f"roles[{role!r}].claim_id")
-            if claim_id not in claims:
-                raise ConfigError(
-                    f"roles[{role!r}].claim_id {claim_id!r} names no claim in the config's "
-                    f"claims map (known: {sorted(claims)})"
-                )
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,22 +101,11 @@ class SwitchboardConfig:
     so a config can carry the recommendation, but NOTHING in this package acts on it; there is no
     live consumer wired this phase, and that is deliberate (see the bake-off effort-vs-model arm +
     docs/effort-vs-model-recommendation.md). Do NOT add a code path that pretends to honor it.
-
-    ``roles`` maps a role name (one of ``ALLOWED_ROLES``) to ``{provider, model, tier,
-    claim_id}``; every value may be null, and null means no measured pin yet. ``claims`` maps
-    a measure-twice claim id to its evidence status (one of ``CLAIM_STATUSES``); a role's
-    ``claim_id`` must name a key of ``claims``. HONEST SCOPE: like ``effort``, both are
-    config-only and report-only. ``local_judge`` ignores them, nothing in this package
-    dispatches by role, and ``tier`` is a reasoning-effort tier hint that nothing here
-    honors. They are validated and surfaced by ``inspect --roles --json`` so an external
-    driver can read the pins without importing this package.
     """
 
     less_token_mode: bool = True
     enabled_call_sites: dict[str, bool | str] = field(default_factory=dict)
     effort: dict[str, str] = field(default_factory=dict)
-    roles: dict[str, dict[str, str | None]] = field(default_factory=dict)
-    claims: dict[str, str] = field(default_factory=dict)
     base_url: str = DEFAULT_BASE_URL
     model: str = DEFAULT_MODEL
     cold_timeout_s: float = DEFAULT_COLD_TIMEOUT_S
@@ -226,9 +142,6 @@ class SwitchboardConfig:
                 raise ConfigError(
                     f"effort[{tc!r}] must be one of {sorted(ALLOWED_EFFORT_TIERS)}, got {tier!r}"
                 )
-
-        _validate_claims(self.claims)
-        _validate_roles(self.roles, self.claims)
 
         for label, tval in (
             ("cold_timeout_s", self.cold_timeout_s),
@@ -305,55 +218,6 @@ class SwitchboardConfig:
         ignores it entirely.
         """
         return self.effort.get(task_class)
-
-
-@dataclass(frozen=True, slots=True)
-class RolePin:
-    """One role's resolved, report-only pin row. Every value is ``None`` until pinned."""
-
-    role: str
-    configured: bool
-    provider: str | None
-    model: str | None
-    tier: str | None
-    claim_id: str | None
-    claim_status: str | None
-
-    def to_json(self) -> dict[str, object]:
-        return {
-            "role": self.role,
-            "configured": self.configured,
-            "provider": self.provider,
-            "model": self.model,
-            "tier": self.tier,
-            "claim_id": self.claim_id,
-            "claim_status": self.claim_status,
-        }
-
-
-def resolve_roles(config: SwitchboardConfig) -> tuple[RolePin, ...]:
-    """Return one row per ``ALLOWED_ROLES`` entry, in that order, with nulls for no pin.
-
-    Pure lookup: no default model, provider, or tier is substituted for a null, and no
-    claim status is invented for a role that cites none.
-    """
-    rows: list[RolePin] = []
-    for role in ALLOWED_ROLES:
-        pin = config.roles.get(role)
-        values = pin if pin is not None else {}
-        claim_id = values.get("claim_id")
-        rows.append(
-            RolePin(
-                role=role,
-                configured=pin is not None,
-                provider=values.get("provider"),
-                model=values.get("model"),
-                tier=values.get("tier"),
-                claim_id=claim_id,
-                claim_status=config.claims[claim_id] if claim_id is not None else None,
-            )
-        )
-    return tuple(rows)
 
 
 @dataclass(frozen=True, slots=True)

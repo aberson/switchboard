@@ -3,14 +3,12 @@
   "config": {
     "defaults": {
       "base_url": "http://localhost:8080/v1",
-      "claims": {},
       "cold_timeout_s": 540.0,
       "effort": {},
       "enabled_call_sites": {},
       "less_token_mode": true,
       "max_tokens": 800,
       "model": "coder-30b",
-      "roles": {},
       "warm_timeout_s": 60.0
     },
     "directory_name": ".switchboard",
@@ -19,8 +17,6 @@
       "less_token_mode",
       "enabled_call_sites",
       "effort",
-      "roles",
-      "claims",
       "base_url",
       "model",
       "cold_timeout_s",
@@ -58,40 +54,14 @@
         "medium",
         "xhigh"
       ],
-      "allowed_role_providers": [
-        "claude",
-        "codex",
-        "local"
-      ],
-      "allowed_roles": [
-        "author",
-        "lens",
-        "reviewer",
-        "delta_reviewer",
-        "packager",
-        "builder",
-        "verifier_contract",
-        "verifier_host",
-        "final_judge",
-        "driver"
-      ],
       "base_url": "safe http(s) URL only; traversal and shell characters are rejected",
-      "claim_statuses": [
-        "MEASURED",
-        "PARTIAL",
-        "ASSERTED",
-        "STALE"
-      ],
       "max_tokens_minimum": 600,
       "name": "non-empty letters, digits, dot, underscore, and hyphen only",
-      "role_pin_fields": [
-        "provider",
-        "model",
-        "tier",
-        "claim_id"
+      "retired_fields": [
+        "roles",
+        "claims"
       ],
-      "role_values": "each role pin value may be null (no measured pin yet); tier uses allowed_effort_tiers; claim_id must name a key of claims",
-      "unknown_top_level_fields": "rejected"
+      "unknown_top_level_fields": "rejected; the retired roles and claims keys are unknown keys now that roles live in the registry"
     }
   },
   "inspect": {
@@ -100,24 +70,50 @@
       "online-model-missing",
       "online-model-served"
     ],
+    "registry_states": [
+      "absent",
+      "invalid",
+      "ok"
+    ],
+    "report_fields": [
+      "schema_version",
+      "state",
+      "config_state",
+      "source",
+      "offload_active",
+      "endpoint_status",
+      "config",
+      "health",
+      "sites",
+      "registry_state",
+      "registry_source",
+      "registry_error",
+      "roles",
+      "error",
+      "limitations"
+    ],
     "role_fields": [
       "role",
-      "configured",
-      "provider",
-      "model",
-      "tier",
+      "description",
+      "read_only",
+      "claude",
+      "codex",
       "claim_id",
-      "claim_status"
+      "evidence"
+    ],
+    "role_host_fields": [
+      "model",
+      "effort"
     ],
     "roles_view_fields": [
       "schema_version",
       "view",
-      "config_state",
+      "registry_state",
       "source",
       "roles",
       "error"
     ],
-    "schema_version": 2,
+    "schema_version": 3,
     "site_fields": [
       "site",
       "configured_value",
@@ -138,5 +134,110 @@
     ]
   },
   "owner": "switchboard",
-  "schema_version": 1
+  "registry": {
+    "claim_statuses": [
+      "MEASURED",
+      "PARTIAL",
+      "ASSERTED",
+      "STALE"
+    ],
+    "default_path": "registry/models.json",
+    "environment_variable": "SWITCHBOARD_REGISTRY",
+    "fields": [
+      "schema_version",
+      "roles"
+    ],
+    "host_fields": [
+      "model",
+      "effort"
+    ],
+    "hosts": [
+      "claude",
+      "codex"
+    ],
+    "optional_row_fields": [
+      "evidence"
+    ],
+    "roles": [
+      "builder",
+      "reviewer",
+      "reviewer-style",
+      "research-verifier",
+      "eval-grader",
+      "goblin-judge",
+      "motion-judge",
+      "diagnosis",
+      "author",
+      "scanner",
+      "researcher",
+      "extractor",
+      "vision-judge",
+      "final-judge"
+    ],
+    "row_fields": [
+      "description",
+      "read_only",
+      "claude",
+      "codex",
+      "claim_id",
+      "evidence"
+    ],
+    "schema_version": 1,
+    "source_precedence": [
+      {
+        "label": "arg",
+        "meaning": "explicit --registry argument"
+      },
+      {
+        "label": "env",
+        "meaning": "SWITCHBOARD_REGISTRY environment variable"
+      },
+      {
+        "label": "repo",
+        "meaning": "committed switchboard/registry/models.json"
+      }
+    ],
+    "states": [
+      "absent",
+      "invalid",
+      "ok"
+    ],
+    "validation": {
+      "claim_id": "required; non-empty letters, digits, dot, underscore, and hyphen only",
+      "claude_effort_levels": [
+        "high",
+        "low",
+        "max",
+        "medium",
+        "xhigh"
+      ],
+      "codex_effort_levels": [
+        "high",
+        "low",
+        "max",
+        "medium",
+        "ultra",
+        "xhigh"
+      ],
+      "effort": "inherit, or one of that host's own levels; a level only the other host has is invalid",
+      "inherit": "inherit",
+      "inherit_meaning": "no key is written for that host; it resolves exactly as it does today",
+      "missing_file": "absent state, exit 0",
+      "model": "inherit, or an exact model ID containing a digit; letters, digits, dot, underscore, and hyphen only; a value containing any rejected_model_substrings entry (case-insensitive) is invalid",
+      "rejected_model_aliases": [
+        "haiku",
+        "sonnet",
+        "opus",
+        "fable"
+      ],
+      "rejected_model_substrings": [
+        "fable"
+      ],
+      "role_name_pattern": "^[a-z][a-z0-9-]*$",
+      "roles": "exactly the listed roles; unknown and missing roles are invalid",
+      "unknown_fields": "rejected at every level; duplicate JSON keys are rejected",
+      "unreadable_or_failing_file": "invalid state, exit 0"
+    }
+  },
+  "schema_version": 2
 }
