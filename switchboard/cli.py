@@ -132,10 +132,9 @@ from switchboard.observe import (
     field_status,
     inspect_role_rows,
     latest_receipts,
-    load_receipts,
+    load_home_receipts,
     observed_for,
     prepare_observation,
-    resolve_home,
 )
 from switchboard.registry import (
     ALLOWED_HOSTS,
@@ -343,10 +342,13 @@ class InspectReport:
 
 
 def _receipts_json(log: ReceiptLog) -> dict[str, object]:
-    """The receipts facts both inspect views carry, beside the registry facts."""
+    """The receipts facts both inspect views carry, beside the registry facts.
+
+    ``receipts_source`` is ``null`` when no home directory could be determined (no file path).
+    """
     return {
         "receipts_state": log.state,
-        "receipts_source": str(log.path),
+        "receipts_source": None if log.path is None else str(log.path),
         "receipts_error": log.error,
     }
 
@@ -386,7 +388,7 @@ def build_inspect_report(
     an absent or invalid registry never hides the config and endpoint facts.
     """
     registry = load_registry(registry_path)
-    receipts = load_receipts(resolve_home(home))
+    receipts = load_home_receipts(home)
     source = config_source_label(path)
     try:
         config, source = load_config(path)
@@ -476,7 +478,7 @@ def build_roles_report(
     that looks unpinned. Receipts are reported the same way (``receipts_state``).
     """
     registry: RegistryResult = load_registry(registry_path)
-    receipts = load_receipts(resolve_home(home))
+    receipts = load_home_receipts(home)
     return {
         "schema_version": INSPECT_SCHEMA_VERSION,
         "view": "roles",
@@ -506,7 +508,8 @@ def _print_encodable(line: str) -> None:
 
 
 def _print_receipts(log: ReceiptLog) -> None:
-    _print_encodable(f"  receipts: {log.state} ({log.path})")
+    where = "no home directory" if log.path is None else str(log.path)
+    _print_encodable(f"  receipts: {log.state} ({where})")
     if log.error is not None:
         _print_encodable(f"  receipts error: {log.error}")
 
@@ -562,7 +565,7 @@ def _run_inspect(
             sys.stdout.write("\n")
             return 0
         registry = load_registry(registry_path)
-        receipts = load_receipts(resolve_home(home))
+        receipts = load_home_receipts(home)
         print("== switchboard inspect --roles ==")
         print(f"  registry: {registry.state}")
         print(f"  registry source: {registry.source}")

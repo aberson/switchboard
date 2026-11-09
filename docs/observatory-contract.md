@@ -25,9 +25,11 @@ message content.
 
 The `inspect` section (inspect `schema_version` 3) names every report and roles-view field, the
 role row and host-pin fields, each row's per-host `observed` fields and statuses, and every
-inspect, endpoint, registry and receipts state. Role pins are requested values: switchboard does
-not dispatch by role. An `observed` value is only the last receipt recorded for that role and
-host, compared with the current pin, or `unknown`.
+inspect, endpoint, registry and receipts state. `receipts_source` is the receipts file path, or
+null only when no home directory can be determined (`receipts_state` is then `invalid`, with the
+reason in `receipts_error`). Role pins are requested values: switchboard does not dispatch by
+role. An `observed` value is only the last receipt recorded for that role and host, compared with
+the current pin, or `unknown`.
 
 ## Update rule
 

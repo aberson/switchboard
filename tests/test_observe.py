@@ -28,6 +28,7 @@ from typing import Any
 
 import pytest
 
+import switchboard.config as config_module
 import switchboard.observe as observe_module
 from switchboard.cli import main
 from switchboard.config import CONFIG_DIRECTORY_NAME, SwitchboardConfig
@@ -489,6 +490,150 @@ def test_receipts_absent_and_unreadable_are_reported_states(
         assert row["observed"] == dict.fromkeys(ALLOWED_HOSTS, OBSERVED_UNKNOWN)
 
 
+# --- No home directory: reported as data, never a traceback ----------------------------------
+
+
+# The real default-config lookup, captured at import, before the autouse fixture swaps in its
+# stand-in (which needs no home).
+_REAL_DEFAULT_CONFIG_PATH = config_module._default_config_path
+_NO_HOME_REASON = "could not determine the home directory (Could not determine home directory.)"
+_NO_TILDE_REASON = "could not expand '~/elsewhere': " + _NO_HOME_REASON
+
+
+def _no_home() -> Path:
+    raise RuntimeError("Could not determine home directory.")  # what pathlib raises
+
+
+def _lose_home(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No home directory can be determined: ``Path.home()`` raises and ``~`` cannot expand.
+
+    The default config lookup is the real one again, so an inspect view that reached it would
+    end in the very traceback these tests guard against.
+    """
+    monkeypatch.setattr(Path, "home", staticmethod(_no_home))
+    # With no home variable and no account entry, os.path.expanduser leaves "~" as it is and
+    # pathlib raises RuntimeError; leaving every path as it is reproduces that on any platform.
+    monkeypatch.setattr(os.path, "expanduser", lambda path: path)
+    for name in ("HOME", "USERPROFILE", "HOMEDRIVE", "HOMEPATH"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr("switchboard.config._default_config_path", _REAL_DEFAULT_CONFIG_PATH)
+    with pytest.raises(RuntimeError):  # the simulation is real: pathlib itself now fails
+        Path("~/x").expanduser()
+
+
+def test_an_undeterminable_home_is_reported_as_data_not_a_traceback(
+    env: Env, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # A receipt exists in the temporary home, then no home directory can be determined.
+    transcript = str(_fixture("claude-role-reviewer.jsonl"))
+    assert _observe(capsys, "--host", "claude", "--transcript", transcript)[0] == 0
+    _lose_home(monkeypatch)
+
+    # inspect --roles --json: invalid receipts, no path, the reason; the registry table intact.
+    report = _roles_json(capsys)
+    assert report["receipts_state"] == "invalid"
+    assert report["receipts_source"] is None
+    assert report["receipts_error"] == f"{_NO_HOME_REASON}; pass --home <dir>"
+    assert report["registry_state"] == "ok"
+    assert {row["role"] for row in report["roles"]} == set(ALLOWED_ROLES)
+    for row in report["roles"]:
+        assert row["observed"] == dict.fromkeys(ALLOWED_HOSTS, OBSERVED_UNKNOWN)
+
+    # inspect --roles (text): the same facts as lines, exit 0.
+    assert main(["inspect", "--roles"]) == 0
+    text = capsys.readouterr().out
+    assert "  receipts: invalid (no home directory)" in text
+    assert f"  receipts error: {_NO_HOME_REASON}; pass --home <dir>" in text
+    assert "  role=reviewer " in text
+    assert "    observed claude=unknown codex=unknown" in text
+
+    # The full inspect report carries the same receipts facts when --path or
+    # SWITCHBOARD_CONFIG names its config. (Without one it looks for the home config file, so
+    # it needs a home directory, as it did before Step R3; the README says so.)
+    config_file = env.root / "config.json"
+    config_file.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr("switchboard.cli.health", _offline_health)
+    roles = [row["role"] for row in report["roles"]]
+
+    def full_inspect(*args: str) -> Doc:
+        assert main(["inspect", *args]) == 0
+        assert "  receipts: invalid (no home directory)" in capsys.readouterr().out
+        assert main(["inspect", "--json", *args]) == 0
+        full: Doc = json.loads(capsys.readouterr().out)
+        assert (full["receipts_state"], full["receipts_source"]) == ("invalid", None)
+        assert full["receipts_error"] == f"{_NO_HOME_REASON}; pass --home <dir>"
+        assert [row["role"] for row in full["roles"]] == roles
+        return full
+
+    assert full_inspect("--path", str(config_file))["source"] == f"arg:{config_file}"
+    monkeypatch.setenv("SWITCHBOARD_CONFIG", str(config_file))
+    assert full_inspect()["source"] == f"env:{config_file}"
+
+    # --home still selects the receipts home: the receipt written above is read back.
+    report = _roles_json(capsys, "--home", str(env.home))
+    assert (report["receipts_state"], report["receipts_error"]) == ("ok", None)
+    assert _rows(report)["reviewer"]["observed"]["claude"]["model_status"] == "match"
+
+
+def test_a_home_tilde_that_cannot_expand_is_reported_as_data(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _lose_home(monkeypatch)
+
+    report = _roles_json(capsys, "--home", "~/elsewhere")
+    assert (report["receipts_state"], report["receipts_source"]) == ("invalid", None)
+    assert report["receipts_error"] == f"{_NO_TILDE_REASON}; give --home as a full path"
+    assert report["registry_state"] == "ok"
+    assert {row["role"] for row in report["roles"]} == set(ALLOWED_ROLES)
+
+    assert main(["inspect", "--roles", "--home", "~/elsewhere"]) == 0
+    text = capsys.readouterr().out
+    assert "  receipts: invalid (no home directory)" in text
+    assert f"  receipts error: {_NO_TILDE_REASON}; give --home as a full path" in text
+
+
+@pytest.mark.parametrize(
+    ("args", "message"),
+    [
+        (
+            ["--transcript", str(FIXTURES / "claude-role-reviewer.jsonl")],
+            f"{_NO_HOME_REASON}; pass --home <dir>",
+        ),
+        (
+            ["--home", "~/elsewhere", "--transcript", str(FIXTURES / "claude-role-reviewer.jsonl")],
+            f"{_NO_TILDE_REASON}; give --home as a full path",
+        ),
+    ],
+)
+def test_observe_without_a_home_writes_nothing_and_prints_one_advisory(
+    env: Env,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    args: list[str],
+    message: str,
+) -> None:
+    _lose_home(monkeypatch)
+
+    rc, out, err = _observe(capsys, "--host", "claude", *args)
+
+    _assert_no_receipt(env, rc, out, err, message)
+    assert err == f"{ADVISORY}{message}; no receipt written\n"
+
+
+def test_observe_with_a_transcript_tilde_that_cannot_expand_writes_nothing(
+    env: Env, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _lose_home(monkeypatch)
+    message = f"{_NO_TILDE_REASON}; give --transcript as a full path"
+
+    rc, out, err = _observe(
+        capsys, "--host", "claude", "--home", str(env.home), "--transcript", "~/elsewhere"
+    )
+
+    _assert_no_receipt(env, rc, out, err, message)
+    assert err == f"{ADVISORY}{message}; no receipt written\n"
+
+
 # --- --latest ---------------------------------------------------------------------------------
 
 
@@ -598,6 +743,11 @@ def test_latest_with_no_subagent_transcript_exits_2_and_writes_nothing(
     assert out == ""
     assert len(err.splitlines()) == 1
     assert err.startswith(f"{ADVISORY}no {host} subagent transcript found")
+    if host == "claude":
+        searched = env.home / ".claude" / "projects"
+    else:
+        searched = env.home / ".codex" / "sessions"
+    assert f" under {str(searched)!r}; no receipt written" in err  # the path is quoted
     assert not (env.home / CONFIG_DIRECTORY_NAME).exists()
 
 
@@ -652,6 +802,8 @@ def test_a_transcript_of_the_other_host_exits_2(
     rc, out, err = _observe(capsys, "--host", host, "--transcript", str(_fixture(name)))
 
     _assert_no_receipt(env, rc, out, err, needle)
+    if host == "codex":  # the path is quoted, like the module's other path messages
+        assert err.startswith(f"{ADVISORY}{str(_fixture(name).absolute())!r} has no ")
 
 
 def test_a_transcript_whose_turns_record_no_model_exits_2(

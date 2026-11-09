@@ -167,6 +167,10 @@ class ObserveInputError(ValueError):
     """Raised when ``observe`` cannot make a receipt; nothing has been written."""
 
 
+class HomeUnavailableError(ValueError):
+    """No home directory can be determined (``Path.home()``, or a ``~`` that cannot expand)."""
+
+
 # --- Small readers --------------------------------------------------------------------------
 
 
@@ -307,7 +311,7 @@ def parse_codex_rollout(path: Path) -> Observation:
             turns.append((index, model, _clean(_dig(entry, CODEX_EFFORT_PATH))))
     if meta is None:
         raise ObserveInputError(
-            f"{path} has no {CODEX_SESSION_META_TYPE!r} line, so it is not a Codex rollout"
+            f"{str(path)!r} has no {CODEX_SESSION_META_TYPE!r} line, so it is not a Codex rollout"
         )
     start = _ordinal(_dig(meta, CODEX_HISTORY_START_PATH))
     own = [turn for turn in turns if start is None or turn[0] >= start]
@@ -425,7 +429,7 @@ def latest_transcript(host: str, home: Path, project_dir: str | None) -> Path:
     if found is None:
         scope = "" if project_dir is None else f" for project {project_dir!r}"
         raise ObserveInputError(
-            f"no {host} subagent transcript found under {where}{scope}; no receipt written"
+            f"no {host} subagent transcript found under {str(where)!r}{scope}; no receipt written"
         )
     return found
 
@@ -528,7 +532,7 @@ def _parse_receipt(entry: object) -> Receipt | None:
 class ReceiptLog:
     """The receipts file as read by ``inspect``: valid receipts in file order, and what failed."""
 
-    path: Path
+    path: Path | None
     state: ReceiptsState
     receipts: tuple[Receipt, ...]
     error: str | None
@@ -630,9 +634,52 @@ def inspect_role_rows(rows: Iterable[RoleRow], log: ReceiptLog) -> list[dict[str
     return [{**row.to_json(), "observed": observed_json(row, latest)} for row in rows]
 
 
+def _expand_user(text: str, hint: str) -> Path:
+    """``Path(text).expanduser()``, raising ``HomeUnavailableError`` when ``~`` cannot expand.
+
+    The message names ``text`` and ends in ``hint``, the way to avoid the expansion.
+    """
+    try:
+        return Path(text).expanduser()
+    except RuntimeError as exc:
+        raise HomeUnavailableError(
+            f"could not expand {text!r}: could not determine the home directory ({exc}); {hint}"
+        ) from exc
+
+
 def resolve_home(home: str | None) -> Path:
-    """``--home``, else the user's home directory, as an absolute path."""
-    return (Path(home).expanduser() if home is not None else Path.home()).absolute()
+    """``--home``, else the user's home directory, as an absolute path.
+
+    Raises ``HomeUnavailableError`` when the home directory cannot be determined, either for
+    the default or for a ``--home`` that starts with ``~``. ``pathlib`` raises a bare
+    ``RuntimeError`` for this case (no home environment variable and no account entry); this
+    function and ``_expand_user`` convert it to that named ``ValueError`` (like
+    ``ObserveInputError`` and ``registry.RegistryError``), so callers report it as data
+    instead of a traceback.
+    """
+    if home is not None:
+        return _expand_user(home, "give --home as a full path").absolute()
+    try:
+        base = Path.home()
+    except RuntimeError as exc:
+        raise HomeUnavailableError(
+            f"could not determine the home directory ({exc}); pass --home <dir>"
+        ) from exc
+    return base.absolute()
+
+
+def load_home_receipts(home: str | None) -> ReceiptLog:
+    """``load_receipts`` for ``--home`` (else the user's home). Never raises.
+
+    A home directory that cannot be determined is reported like an unreadable receipts log:
+    ``invalid``, no receipts, the reason in ``error``, and no ``path`` (``None``; the only
+    ``ReceiptLog`` without one, since there is no file).
+    """
+    try:
+        home_dir = resolve_home(home)
+    except HomeUnavailableError as exc:
+        return ReceiptLog(path=None, state="invalid", receipts=(), error=str(exc))
+    return load_receipts(home_dir)
 
 
 # --- One observe run (cli.py prints it and maps it to an exit code) -------------------------
@@ -680,8 +727,9 @@ def prepare_observation(
     """Load the registry, find and read the transcript, and build its receipt. Writes nothing.
 
     Raises ``ObserveInputError`` (its message is the one advisory line) when the registry is
-    not ok, the home is not a directory, no transcript is found or readable, or the counted
-    lines record no model.
+    not ok, the home cannot be determined or is not a directory, a ``~`` in ``--transcript``
+    cannot be expanded, no transcript is found or readable, or the counted lines record no
+    model.
     """
     if host not in HOST_PARSERS:
         raise ObserveInputError(f"unknown host {host!r}; allowed: {list(ALLOWED_HOSTS)}")
@@ -691,13 +739,19 @@ def prepare_observation(
             f"registry is {registry.state} ({registry.source}): {registry.error}; "
             "no receipt written"
         )
-    home_dir = resolve_home(home)
+    try:
+        home_dir = resolve_home(home)
+    except HomeUnavailableError as exc:
+        raise ObserveInputError(f"{exc}; no receipt written") from exc
     if not home_dir.is_dir():
         raise ObserveInputError(f"home {str(home_dir)!r} is not a directory; no receipt written")
     if latest:
         path = latest_transcript(host, home_dir, project_dir)
     elif transcript is not None:
-        path = Path(transcript).expanduser()
+        try:
+            path = _expand_user(transcript, "give --transcript as a full path")
+        except HomeUnavailableError as exc:
+            raise ObserveInputError(f"{exc}; no receipt written") from exc
     else:
         raise ObserveInputError("give --transcript <path> or --latest; no receipt written")
     path = path.absolute()

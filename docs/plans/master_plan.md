@@ -1539,7 +1539,7 @@ measure-twice build or release.
 - **Type:** code
 - **Issue:** #573
 - **Flags:** --reviewers deep --isolation worktree
-- **Status:** BLOCKED (2026-11-09)
+- **Status:** DONE (2026-11-09)
 - **Files:** `switchboard/switchboard/observe.py` (new), `switchboard/switchboard/cli.py`,
   `switchboard/tests/test_observe.py` (new), `switchboard/tests/fixtures/observe/` (new, synthetic),
   `switchboard/docs/observatory-contract.json`, `switchboard/README.md`. Also touched, as
@@ -1565,7 +1565,15 @@ measure-twice build or release.
     (`match`, `mismatch`, `inherit` or `unknown`) against the current pin, which is how a mismatch
     is displayed (a `MISMATCH` line in the text view), and the report adds `receipts_state`
     (`absent`, `ok` or `invalid`), `receipts_source` and `receipts_error`; all additive within
-    inspect schema 3 and mirrored in `docs/observatory-contract.json`.
+    inspect schema 3 and mirrored in `docs/observatory-contract.json`. Recorded at build time: when
+    no home directory can be determined (no `--home` and `Path.home()` fails, or a `~` in `--home`
+    cannot expand), `inspect --roles`, with or without `--json`, still exits 0 with the registry
+    table and reports `receipts_state` `invalid`, `receipts_source` `null` (the text view prints
+    `no home directory`) and the reason in `receipts_error`, as does the full `inspect` when
+    `--path` or `$SWITCHBOARD_CONFIG` names its config, while `observe` then, or when a `~` in
+    `--transcript` cannot expand, writes nothing (exit 2, one advisory line); the full `inspect`
+    default-config lookup (`config.py`, `_default_config_path`) and `apply`'s home lookup
+    (`generate.py:817`) are out of R3, unchanged, and owned by sibling issue #582.
 - **Done when:** Field names are taken from one real transcript per host, captured at build time and
   recorded in the module docstring; fixture content is synthetic. The fixtures round-trip through
   `python -m switchboard observe` into a receipt and into `inspect --roles --json`. A transcript that

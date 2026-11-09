@@ -220,11 +220,18 @@ native transcript and appends one line to the private `<home>/.switchboard/recei
   per mismatch. With `--json`, each row's `observed` is `{"claude": ..., "codex": ...}`, each
   `{model, effort, model_status, effort_status, ts, source_locator}` or `"unknown"`, and
   `receipts_state` is `absent`, `ok` or `invalid` (malformed lines are skipped and counted in
-  `receipts_error`). In the text views a character the console cannot encode (a non-Latin path
-  on a cp1252 console, say) is printed as a backslash escape rather than failing.
+  `receipts_error`). When no home directory can be determined (none given by `--home`, or a
+  `~` in `--home` that cannot expand), `inspect --roles` and `inspect --roles --json` still exit
+  0 with the registry table: `receipts_state` is `invalid`, `receipts_source` is `null` and
+  `receipts_error` gives the reason. The full `inspect` report carries the same receipts facts
+  when `--path` or `SWITCHBOARD_CONFIG` names its config; without one it looks for
+  `~/.switchboard/config.json`, which, as before, needs a home directory. In the text views a
+  character the console cannot encode (a non-Latin path on a cp1252 console, say) is printed as
+  a backslash escape rather than failing.
 - **Exit codes.** `0`: the receipt was appended (an unattributed one included). `1`: the append
-  failed. `2`: the registry is not `ok`, `--home` is not a directory, or no readable transcript
-  with model metadata was found; nothing is written and exactly one advisory line (prefixed
+  failed. `2`: the registry is not `ok`, the home directory cannot be determined or is not a
+  directory, a `~` in `--transcript` cannot be expanded, or no readable transcript with model
+  metadata was found; nothing is written and exactly one advisory line (prefixed
   `switchboard observe: `) is printed. `--project-dir` without `--latest` is a usage error.
 
 `observe` only reads transcripts the hosts already wrote. Live dispatches are proven by Step R5.

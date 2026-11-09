@@ -484,7 +484,8 @@ def test_observatory_contract_matches_inspect_runtime_shape(
         assert list(row[host]) == inspect_contract["role_host_fields"]
     # No receipts in the (empty, temporary) home: every host reads unknown, never a value.
     assert row["observed"] == dict.fromkeys(ALLOWED_HOSTS, inspect_contract["observed_unknown"])
-    assert list(build_inspect_report().to_json()["roles"][0]) == inspect_contract["role_fields"]  # type: ignore[index]
+    full_row = build_inspect_report().to_json()["roles"][0]  # type: ignore[index]
+    assert list(full_row) == inspect_contract["role_fields"]
 
 
 # --- inspect --roles --json: the committed registry table for an external driver ----------
