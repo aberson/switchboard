@@ -85,11 +85,13 @@ switchboard/
 
 ## Current state
 
-Phase R-A code steps R1-R3 complete — the committed role registry is shown by `inspect --roles`,
-`apply` generates Claude and Codex role files under the ownership ledger, and `observe` records
-requested-versus-observed receipts. Local offload is parked (R4, 2026-11-08: every call site
-`false`). Operator step R5, the live role-dispatch probe on the real hosts, is open; #582 tracks
-the remaining unguarded `Path.home()` sites.
+Phase R-A complete (R1-R5). The committed role registry is shown by `inspect --roles`, `apply`
+generates Claude and Codex role files under the ownership ledger, and `observe` records
+requested-versus-observed receipts. R5 (2026-11-09) proved on the real hosts that a dispatch by
+role name runs the pinned model and effort on all four paths. Local offload is parked (R4: every
+call site `false`). Next: Phase R-B (R7 can start; R6 waits on measure-twice R-MT1).
+`docs/seeds/seed_dispatch_proof.md` standardizes the proof. #582 tracks the remaining unguarded
+`Path.home()` sites.
 
 ## Environment requirements
 

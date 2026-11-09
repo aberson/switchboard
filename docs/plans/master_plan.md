@@ -2106,14 +2106,15 @@ changed.
 
 ## Phase R-A — Model registry: roles table, apply and observe receipts (code steps R1-R3)
 
-**All 3 code-step issues closed (#571-#573). 368/370 tests passing (2 skipped). Zero type errors. Zero lint violations.**
-Operator step R4 (#574, park local offload) is DONE (2026-11-08; its issue is still open). Operator step R5 (#575, live role-dispatch probe) is open as Manual UAT M2.
+**Code-step issues #571-#573 and the R5 probe #575 closed. 368/370 tests passing (2 skipped). Zero type errors. Zero lint violations.**
+Operator step R4 (#574, park local offload) is DONE (2026-11-08; its issue is still open). Operator step R5 (#575, live role-dispatch probe, Manual UAT M2) passed on all four paths on 2026-11-09.
 
 ### What was built
 
 - R1 (#571): the committed role registry `registry/models.json`, validated by `registry.py` and shown by `inspect --roles [--json]`.
 - R2 (#572): `apply [--write] [--prune]` renders `~/.claude/agents/role-*.md` and `~/.codex/agents/role-*.toml` under the sha256 ownership ledger `~/.switchboard/generated.json`, and refuses foreign or hand-edited files (including an edit made between plan and delete).
 - R3 (#573): `observe --host claude|codex (--transcript <path> | --latest)` appends metadata-only receipts to `~/.switchboard/receipts.jsonl`; `inspect --roles` shows each host's latest observed model and effort with a match, mismatch, inherit or unknown status, and reports a missing home or an unexpandable `~` as data.
+- R5 (#575): on the real hosts, a dispatch by role name ran exactly the pinned model and effort on all four paths: Agent tool and Workflow `agentType` in VS Code, `claude -p`, and a Codex spawn. On the headless paths the parent ran a different model, so the match comes from the role file. `seed_dispatch_proof.md` (in `switchboard/docs/seeds/`) standardizes this as a repeatable proof point for dev-observatory.
 
 ### Files changed
 
@@ -2135,7 +2136,8 @@ Operator step R4 (#574, park local offload) is DONE (2026-11-08; its issue is st
 |---|---|
 | No-home scope | R3's Produces records which no-home and `~` cases are covered; #582 owns `config.py`'s default-config lookup and `generate.py:817` (`apply`). |
 | Pre-land recovery | R2 and R3 each ended one run BLOCKED; their kept worktrees were pre-landed (8fb20243, 9d3cbc7d) because `/build-step` always branches from HEAD, then the step was narrowed and resumed. |
-| Real home | `apply` and `observe` default to the real home; every test passes `--home <tmp>`. The first real-home run is R5 (M2). |
+| Real home | `apply` and `observe` default to the real home; every test passes `--home <tmp>`. R5 ran the first real-home `apply --write` (28 role files) on 2026-11-09. |
+| Host CLIs | R5 needed the PATH Claude CLI at 2.1.311 (floor 2.1.292) and the PATH Codex CLI at 0.167.0 (0.147.0 could not run the default `gpt-6-astra`). A running VS Code window lists new `role-*` agents only after it reloads them. |
 
 ## Manual UAT
 
