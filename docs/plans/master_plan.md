@@ -1618,6 +1618,7 @@ uv run python -m switchboard config
   on every dispatch path the migration will use, before any skill depends on it.
 - **Type:** operator
 - **Issue:** #575
+- **Status:** DONE (2026-11-09; receipts in `~/.switchboard/receipts.jsonl` show `observed_model == requested_model` and a recorded effort on all four paths: Agent tool `role-extractor` and Workflow `agentType: role-extractor` in VS Code, `claude -p` on PATH CLI 2.1.311 (all `claude-sonnet-5-5`/low), and a Codex 0.167.0 spawn of `role-builder` (`gpt-5.6-sol`/medium, under a `gpt-6-astra` parent). The PATH Codex CLI had to be upgraded from 0.147.0, which could not run the default `gpt-6-astra` model.)
 - **Files:** none (generated files and receipts live in the operator's home)
 - **Produces:** operator evidence only: receipts plus `inspect --roles` output
 - **Done when:** `~/.switchboard/receipts.jsonl` shows `observed_model == requested_model` on four paths:
