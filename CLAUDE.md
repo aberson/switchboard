@@ -27,6 +27,12 @@ uv run mypy --strict switchboard
 uv run python -m switchboard inspect --json
 # committed model registry table (role -> claude/codex model + effort, claim_id); no probe
 uv run python -m switchboard inspect --roles --json
+# preview the Claude/Codex role files the registry generates (writes nothing)
+uv run python -m switchboard apply
+# write ~/.claude/agents/role-*.md + ~/.codex/agents/role-*.toml under the ownership ledger
+uv run python -m switchboard apply --write
+# also remove ledger-owned, unedited role files whose role left the registry
+uv run python -m switchboard apply --prune --write
 # config-only validation (does not launch or probe the endpoint)
 uv run python -m switchboard config
 # deterministic recorded evidence; writes report.md, scores.jsonl, and bakeoff.json
@@ -62,6 +68,10 @@ endpoint availability.
   Models are exact IDs or `inherit` (no aliases, no model containing `fable`); each host's effort
   is checked against that host's own levels. Change a row only as a reviewed commit, and update
   `docs/observatory-contract.json` with any registry or inspect field change.
+- `apply` (`switchboard/generate.py`) is a dry run unless `--write`. It updates or prunes a file
+  only with a ledger entry in `~/.switchboard/generated.json` AND a matching current sha256;
+  never decide ownership from the provenance comment. Tests must pass `--home <tmp>` (the
+  default is the real home).
 - Endpoint (`coder-30b` via `llama-swap.service` on `:8080`) lives in WSL2, installed by
   void_furnace; needs a keep-alive for the localhost relay.
 

@@ -20,6 +20,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -61,7 +62,7 @@ ALLOWED_ROLES: tuple[str, ...] = (
 )
 # Role names are kebab-case, matching measure-twice tags (``reviewer-style``).
 ROLE_NAME_PATTERN = "^[a-z][a-z0-9-]*$"
-_ROLE_NAME_RE = re.compile(ROLE_NAME_PATTERN)
+ROLE_NAME_RE = re.compile(ROLE_NAME_PATTERN)
 
 # The hosts a row pins, exactly (Copilot is not a registry host: decision R-P3).
 ALLOWED_HOSTS: tuple[str, ...] = ("claude", "codex")
@@ -300,7 +301,7 @@ def parse_roles(document: object) -> tuple[RoleRow, ...]:
 
     rows: dict[str, RoleRow] = {}
     for role, row in roles.items():
-        if not isinstance(role, str) or not _ROLE_NAME_RE.fullmatch(role):
+        if not isinstance(role, str) or not ROLE_NAME_RE.fullmatch(role):
             raise RegistryError(f"role name {role!r} must match {ROLE_NAME_PATTERN}")
         if role not in ALLOWED_ROLES:
             raise RegistryError(f"unknown role {role!r}; allowed: {list(ALLOWED_ROLES)}")
@@ -340,14 +341,29 @@ def _resolve_registry_source(path: str | None = None) -> tuple[str, str]:
     return f"repo:{default}", default
 
 
-def _reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
-    """``json`` keeps the last of two equal keys; a duplicated role must fail instead."""
-    out: dict[str, object] = {}
-    for key, value in pairs:
-        if key in out:
-            raise RegistryError(f"duplicate key {key!r} in registry")
-        out[key] = value
-    return out
+def duplicate_key_rejector(
+    make_error: Callable[[str], Exception],
+) -> Callable[[list[tuple[str, object]]], dict[str, object]]:
+    """A ``json`` ``object_pairs_hook`` that raises ``make_error(key)`` on a repeated key.
+
+    ``json`` keeps the last of two equal keys; a duplicated key must fail instead.
+    """
+
+    def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        out: dict[str, object] = {}
+        for key, value in pairs:
+            if key in out:
+                raise make_error(key)
+            out[key] = value
+        return out
+
+    return reject_duplicate_keys
+
+
+# A duplicated role must fail instead of silently keeping the last row.
+_reject_duplicate_keys = duplicate_key_rejector(
+    lambda key: RegistryError(f"duplicate key {key!r} in registry")
+)
 
 
 def load_registry(path: str | None = None) -> RegistryResult:

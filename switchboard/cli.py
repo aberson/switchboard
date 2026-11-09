@@ -4,6 +4,8 @@
     python -m switchboard bakeoff --suite <path> [--output-dir <dir>]
     python -m switchboard config [--path PATH]
     python -m switchboard inspect [--path PATH] [--registry PATH] [--json] [--roles]
+    python -m switchboard apply [--write] [--prune] [--home DIR] [--registry PATH]
+                                [--catalog PATH]
 
 ``--site`` is the canonical flag the wired SKILL.md prose passes (the call-site task_class);
 ``--slice`` is a back-compat alias for the same value. Exactly one must be given.
@@ -29,6 +31,18 @@ endpoint, so an external driver can read it without importing this package. The 
 from the committed registry (``--registry``, then ``$SWITCHBOARD_REGISTRY``, then the repo
 default); an absent or invalid registry is reported as data with exit 0. Rows are requested
 values only: nothing here dispatches by role.
+
+The ``apply`` subcommand (``switchboard.generate``) renders the registry into
+``<home>/.claude/agents/role-<role>.md`` and ``<home>/.codex/agents/role-<role>.toml``. A bare
+run prints the per-file plan and writes nothing; ``--write`` acts on it under the ownership
+ledger ``<home>/.switchboard/generated.json``; ``--prune`` adds removal of ledger-owned,
+hash-matching files whose role left the registry. ``switchboard.generate`` computes the plan,
+the outcomes and the advisories; this module prints them (advisories on stderr, prefixed
+``switchboard apply: ``, never changing the exit code) and maps them to exit codes: 0 when the
+plan was computed (and, with ``--write``, carried out; a refusal is a reported plan state, not
+an error); 1 when a write, delete or ledger update failed; 2 when the registry is missing,
+invalid or cannot be rendered, or ``--home`` is not a directory (nothing written, exactly one
+advisory line).
 
 Contract for the CALLER (a skill):
   * exit code is ALWAYS 0 on a well-formed judge invocation — a ``defer`` is not an error, it
@@ -79,6 +93,16 @@ from switchboard.config import (
     inspect_sites,
     load_config,
 )
+from switchboard.generate import (
+    ACTIONS,
+    ApplyInputError,
+    ApplyInputs,
+    FilePlan,
+    execute_plan,
+    load_apply_inputs,
+    plan_files,
+    preflight_advisories,
+)
 from switchboard.health import EndpointStatus, Health, endpoint_status, health
 from switchboard.metrics import METRICS, Metrics
 from switchboard.registry import (
@@ -91,6 +115,8 @@ from switchboard.registry import (
 
 # Default output dir for `bakeoff` when --output-dir is omitted: a repo-local _tmp/ sibling.
 DEFAULT_BAKEOFF_OUTPUT = "_tmp"
+# Every `apply` advisory stderr line starts with the program prefix (cf. ``switchboard: ...``).
+APPLY_ADVISORY_PREFIX = "switchboard apply: "
 # v2 added a config-resident ``roles`` table (and the probe-free ``inspect --roles`` view).
 # v3 reads roles from the committed registry: per-host ``model``/``effort`` plus ``claim_id``,
 # with ``registry_state`` (absent | invalid | ok) in place of the roles view's config_state.
@@ -443,6 +469,69 @@ def _run_inspect(
     return 0
 
 
+def _apply_plan_line(item: FilePlan) -> str:
+    line = f"  {item.action:<9} {item.host:<6} role={item.role:<18} {item.path}"
+    if item.reason is not None:
+        line = f"{line}  ({item.reason})"
+    return line
+
+
+def _print_apply_report(inputs: ApplyInputs, plan: Sequence[FilePlan], write: bool) -> None:
+    """The per-file plan (with ``--write``, the outcomes) and a one-line summary, to stdout."""
+    mode = "--write" if write else "(dry run)"
+    print(f"== switchboard apply {mode} ==")
+    print(f"  home: {inputs.home}")
+    print(f"  registry: {inputs.registry.state} ({inputs.registry.source})")
+    print(f"  ledger: {inputs.ledger.state} ({inputs.ledger.path})")
+    for item in plan:
+        print(_apply_plan_line(item))
+    counts = " ".join(f"{action}={sum(i.action == action for i in plan)}" for action in ACTIONS)
+    if write:
+        changes = sum(i.action in ("create", "update", "delete", "forget") for i in plan)
+        tail = f"{changes} change(s) written"
+    else:
+        tail = "dry run, nothing written (pass --write to apply)"
+    print(f"  summary: {counts}; {tail}")
+
+
+def _apply_advise(message: str) -> None:
+    print(f"{APPLY_ADVISORY_PREFIX}{message}", file=sys.stderr)
+
+
+def _run_apply(
+    *,
+    write: bool,
+    prune: bool,
+    home: str | None,
+    registry_path: str | None,
+    catalog_path: str | None,
+) -> int:
+    """The ``apply`` subcommand: advisories to stderr, the plan to stdout, then the exit code.
+
+    ``switchboard.generate`` computes the plan, the outcomes and the advisories; this presents
+    them. Returns the process exit code: 0 when the plan was computed (and, with ``--write``,
+    carried out), 1 when a write, delete or ledger update failed, 2 when the registry or
+    ``--home`` is unusable (nothing written).
+    """
+    try:
+        inputs = load_apply_inputs(home=home, registry_path=registry_path)
+    except ApplyInputError as exc:
+        _apply_advise(str(exc))
+        return 2
+    for line in preflight_advisories(inputs, catalog_path=catalog_path):
+        _apply_advise(line)
+    plan = plan_files(inputs.rendered, inputs.home, inputs.ledger, prune=prune)
+    errors: list[str] = []
+    if write:
+        plan, errors, notes = execute_plan(plan, inputs.ledger)
+        for note in notes:
+            _apply_advise(note)
+    _print_apply_report(inputs, plan, write)
+    for message in errors:
+        print(f"error: {message}", file=sys.stderr)
+    return 1 if errors else 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m switchboard",
@@ -548,6 +637,44 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="report only the role registry table; never reads config or probes the endpoint",
     )
+
+    apply_cmd = sub.add_parser(
+        "apply",
+        help="generate Claude and Codex role files from the registry; a dry run unless --write",
+    )
+    apply_cmd.add_argument(
+        "--write",
+        action="store_true",
+        help="carry out the plan: write files atomically and record them in the ledger "
+        "<home>/.switchboard/generated.json",
+    )
+    apply_cmd.add_argument(
+        "--prune",
+        action="store_true",
+        help="also remove ledger-owned, hash-matching role files whose role left the registry "
+        "(acts only with --write)",
+    )
+    apply_cmd.add_argument(
+        "--home",
+        dest="home",
+        default=None,
+        help="the home directory holding .claude/agents, .codex/agents and .switchboard "
+        "(default: the user's home directory)",
+    )
+    apply_cmd.add_argument(
+        "--registry",
+        dest="registry",
+        default=None,
+        help="read a specific role registry file instead of $SWITCHBOARD_REGISTRY or the "
+        "committed registry/models.json",
+    )
+    apply_cmd.add_argument(
+        "--catalog",
+        dest="catalog",
+        default=None,
+        help='a spawn-site catalog {"schema_version": 1, "sites": {site: role|inherit}}; '
+        "prints an advisory for each catalog role with no registry row",
+    )
     return parser
 
 
@@ -588,6 +715,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "inspect":
         return _run_inspect(args.path, args.json, args.roles, args.registry)
+
+    if args.command == "apply":
+        return _run_apply(
+            write=args.write,
+            prune=args.prune,
+            home=args.home,
+            registry_path=args.registry,
+            catalog_path=args.catalog,
+        )
 
     # argparse `required=True` on the subparser makes this unreachable, but keep it total.
     parser.error(f"unknown command {args.command!r}")  # pragma: no cover
