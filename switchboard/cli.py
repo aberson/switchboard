@@ -3,9 +3,12 @@
     python -m switchboard judge --site <task_class> [--prompt-file PATH | --prompt STR]
     python -m switchboard bakeoff --suite <path> [--output-dir <dir>]
     python -m switchboard config [--path PATH]
-    python -m switchboard inspect [--path PATH] [--registry PATH] [--json] [--roles]
+    python -m switchboard inspect [--path PATH] [--registry PATH] [--home DIR] [--json] [--roles]
     python -m switchboard apply [--write] [--prune] [--home DIR] [--registry PATH]
                                 [--catalog PATH]
+    python -m switchboard observe --host claude|codex
+                                  (--transcript PATH | --latest [--project-dir DIR])
+                                  [--home DIR] [--registry PATH]
 
 ``--site`` is the canonical flag the wired SKILL.md prose passes (the call-site task_class);
 ``--slice`` is a back-compat alias for the same value. Exactly one must be given.
@@ -29,8 +32,10 @@ table, and one bounded endpoint probe. ``inspect --roles --json`` prints only th
 table (role -> per-host model and effort, plus the cited ``claim_id``) and never probes the
 endpoint, so an external driver can read it without importing this package. The table is read
 from the committed registry (``--registry``, then ``$SWITCHBOARD_REGISTRY``, then the repo
-default); an absent or invalid registry is reported as data with exit 0. Rows are requested
-values only: nothing here dispatches by role.
+default); an absent or invalid registry is reported as data with exit 0. Row pins are requested
+values: nothing here dispatches by role. Each row's ``observed`` value is, per host, the last
+receipt ``observe`` recorded for that role (``<home>/.switchboard/receipts.jsonl``, ``--home``
+defaulting to the user's home directory) compared with the row's current pin, or ``unknown``.
 
 The ``apply`` subcommand (``switchboard.generate``) renders the registry into
 ``<home>/.claude/agents/role-<role>.md`` and ``<home>/.codex/agents/role-<role>.toml``. A bare
@@ -43,6 +48,17 @@ plan was computed (and, with ``--write``, carried out; a refusal is a reported p
 an error); 1 when a write, delete or ledger update failed; 2 when the registry is missing,
 invalid or cannot be rendered, or ``--home`` is not a directory (nothing written, exactly one
 advisory line).
+
+The ``observe`` subcommand (``switchboard.observe``) reads one native host transcript (the given
+``--transcript``, or with ``--latest`` the newest subagent transcript under ``--home``), and
+appends one requested-versus-observed receipt to ``<home>/.switchboard/receipts.jsonl``. It
+reads only model, effort and agent-type metadata. It prints the comparison to stdout (a
+mismatch reads ``MISMATCH``; a character stdout cannot encode is printed as a backslash escape,
+so an encoding error cannot turn an appended receipt into exit 1), advisories to stderr
+prefixed ``switchboard observe: ``, and exits 0 when the receipt was appended (an
+``unattributed`` receipt included), 1 when the append failed, 2 when the registry is not ok,
+``--home`` is not a directory, or no transcript with model metadata was found or readable
+(nothing written, exactly one advisory line).
 
 Contract for the CALLER (a skill):
   * exit code is ALWAYS 0 on a well-formed judge invocation — a ``defer`` is not an error, it
@@ -63,7 +79,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -105,6 +121,22 @@ from switchboard.generate import (
 )
 from switchboard.health import EndpointStatus, Health, endpoint_status, health
 from switchboard.metrics import METRICS, Metrics
+from switchboard.observe import (
+    OBSERVED_UNKNOWN,
+    UNATTRIBUTED,
+    ObserveInputError,
+    ObserveResult,
+    Receipt,
+    ReceiptLog,
+    append_receipt,
+    field_status,
+    inspect_role_rows,
+    latest_receipts,
+    load_receipts,
+    observed_for,
+    prepare_observation,
+    resolve_home,
+)
 from switchboard.registry import (
     ALLOWED_HOSTS,
     RegistryResult,
@@ -117,9 +149,12 @@ from switchboard.registry import (
 DEFAULT_BAKEOFF_OUTPUT = "_tmp"
 # Every `apply` advisory stderr line starts with the program prefix (cf. ``switchboard: ...``).
 APPLY_ADVISORY_PREFIX = "switchboard apply: "
+OBSERVE_ADVISORY_PREFIX = "switchboard observe: "
 # v2 added a config-resident ``roles`` table (and the probe-free ``inspect --roles`` view).
 # v3 reads roles from the committed registry: per-host ``model``/``effort`` plus ``claim_id``,
 # with ``registry_state`` (absent | invalid | ok) in place of the roles view's config_state.
+# Additive within v3 (Step R3): each row's per-host ``observed`` value plus ``receipts_state``,
+# ``receipts_source`` and ``receipts_error``.
 INSPECT_SCHEMA_VERSION = 3
 InspectState = Literal[
     "absent",
@@ -282,6 +317,7 @@ class InspectReport:
     registry_source: str
     registry_error: str | None
     roles: tuple[RoleRow, ...]
+    receipts: ReceiptLog
     error: str | None
     limitations: tuple[str, ...]
 
@@ -299,10 +335,20 @@ class InspectReport:
             "registry_state": self.registry_state,
             "registry_source": self.registry_source,
             "registry_error": self.registry_error,
-            "roles": [role.to_json() for role in self.roles],
+            **_receipts_json(self.receipts),
+            "roles": inspect_role_rows(self.roles, self.receipts),
             "error": self.error,
             "limitations": list(self.limitations),
         }
+
+
+def _receipts_json(log: ReceiptLog) -> dict[str, object]:
+    """The receipts facts both inspect views carry, beside the registry facts."""
+    return {
+        "receipts_state": log.state,
+        "receipts_source": str(log.path),
+        "receipts_error": log.error,
+    }
 
 
 _INSPECT_LIMITATIONS = (
@@ -311,6 +357,8 @@ _INSPECT_LIMITATIONS = (
     "No outcome or retry evidence is inferred from endpoint health or config state.",
     "Role rows are requested registry values, not observed dispatches: nothing in switchboard "
     "dispatches by role, and inherit means the host resolves exactly as it does today.",
+    "A row's observed value is only the last receipt `observe` recorded from a host transcript, "
+    "compared with the current row; dispatches that were never observed are not covered.",
 )
 
 
@@ -330,14 +378,15 @@ def _inspect_state(
 
 
 def build_inspect_report(
-    path: str | None = None, registry_path: str | None = None
+    path: str | None = None, registry_path: str | None = None, home: str | None = None
 ) -> InspectReport:
-    """Read validated config, the registry, and one bounded health probe; mutate nothing.
+    """Read validated config, the registry, receipts and one bounded health probe; mutate nothing.
 
     The registry is independent of config: an invalid config still reports the role table, and
     an absent or invalid registry never hides the config and endpoint facts.
     """
     registry = load_registry(registry_path)
+    receipts = load_receipts(resolve_home(home))
     source = config_source_label(path)
     try:
         config, source = load_config(path)
@@ -356,6 +405,7 @@ def build_inspect_report(
             registry_source=registry.source,
             registry_error=registry.error,
             roles=registry.roles,
+            receipts=receipts,
             error=str(exc),
             limitations=_INSPECT_LIMITATIONS,
         )
@@ -386,6 +436,7 @@ def build_inspect_report(
         registry_source=registry.source,
         registry_error=registry.error,
         roles=registry.roles,
+        receipts=receipts,
         error=None,
         limitations=_INSPECT_LIMITATIONS,
     )
@@ -410,33 +461,90 @@ def _print_inspect(report: InspectReport) -> None:
     print(f"  registry source: {report.registry_source}")
     if report.registry_error is not None:
         print(f"  registry error: {report.registry_error}")
-    _print_roles(report.roles)
+    _print_receipts(report.receipts)
+    _print_roles(report.roles, report.receipts)
 
 
-def build_roles_report(registry_path: str | None = None) -> dict[str, object]:
-    """The probe-free ``inspect --roles`` view: the registry table only.
+def build_roles_report(
+    registry_path: str | None = None, home: str | None = None
+) -> dict[str, object]:
+    """The probe-free ``inspect --roles`` view: the registry table and its observed values.
 
-    Reads and validates the registry but never reads config or calls the endpoint. An absent
-    or invalid registry is reported as data (``registry_state``, empty ``roles``, an ``error``),
-    not a crash, so a driver sees the failure instead of an empty table that looks unpinned.
+    Reads and validates the registry and reads the receipts, but never reads config or calls
+    the endpoint. An absent or invalid registry is reported as data (``registry_state``, empty
+    ``roles``, an ``error``), not a crash, so a driver sees the failure instead of an empty table
+    that looks unpinned. Receipts are reported the same way (``receipts_state``).
     """
     registry: RegistryResult = load_registry(registry_path)
+    receipts = load_receipts(resolve_home(home))
     return {
         "schema_version": INSPECT_SCHEMA_VERSION,
         "view": "roles",
         "registry_state": registry.state,
         "source": registry.source,
-        "roles": [role.to_json() for role in registry.roles],
+        **_receipts_json(receipts),
+        "roles": inspect_role_rows(registry.roles, receipts),
         "error": registry.error,
     }
 
 
-def _print_roles(rows: Sequence[RoleRow]) -> None:
+def _print_encodable(line: str) -> None:
+    """``print(line)``, writing any character stdout cannot encode as a backslash escape.
+
+    Receipt values and transcript paths come from host files, so they may hold characters a
+    redirected Windows stdout (cp1252) cannot encode, or a lone surrogate from a JSON escape.
+    ``observe`` prints its report after the receipt is appended, so a strict encode failure
+    there would turn a written receipt into a traceback and exit 1 (and invite a duplicate on
+    retry); escaping keeps the report printable and the exit code honest.
+    """
+    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+    try:
+        text = line.encode(encoding, "backslashreplace").decode(encoding, "replace")
+    except LookupError:
+        text = line.encode("ascii", "backslashreplace").decode("ascii")
+    print(text)
+
+
+def _print_receipts(log: ReceiptLog) -> None:
+    _print_encodable(f"  receipts: {log.state} ({log.path})")
+    if log.error is not None:
+        _print_encodable(f"  receipts error: {log.error}")
+
+
+def _observed_lines(row: RoleRow, latest: Mapping[tuple[str, str], Receipt]) -> list[str]:
+    """The observed line of one role, then one ``MISMATCH`` line per mismatched value."""
+    parts: list[str] = []
+    mismatches: list[str] = []
+    for host in ALLOWED_HOSTS:
+        observed = observed_for(row, host, latest)
+        if observed is None:
+            parts.append(f"{host}={OBSERVED_UNKNOWN}")
+            continue
+        parts.append(
+            f"{host}={observed.model}/{observed.effort} "
+            f"(model {observed.model_status}, effort {observed.effort_status})"
+        )
+        pin = row.host(host)
+        for label, requested, value, status in (
+            ("model", pin.model, observed.model, observed.model_status),
+            ("effort", pin.effort, observed.effort, observed.effort_status),
+        ):
+            if status == "mismatch":
+                mismatches.append(
+                    f"    MISMATCH {host} {label}: requested {requested}, observed {value}"
+                )
+    return [f"    observed {' '.join(parts)}", *mismatches]
+
+
+def _print_roles(rows: Sequence[RoleRow], log: ReceiptLog) -> None:
+    latest = latest_receipts(log.receipts)
     for row in rows:
         hosts = " ".join(
             f"{host}={row.host(host).model}/{row.host(host).effort}" for host in ALLOWED_HOSTS
         )
         print(f"  role={row.role} {hosts} read_only={row.read_only} claim={row.claim_id}")
+        for line in _observed_lines(row, latest):
+            _print_encodable(line)
 
 
 def _run_inspect(
@@ -444,23 +552,27 @@ def _run_inspect(
     json_output: bool,
     roles_only: bool = False,
     registry_path: str | None = None,
+    home: str | None = None,
 ) -> int:
     """Emit an inspect report for all config/endpoint states; invalid is data, not a crash."""
     if roles_only:
         if json_output:
-            json.dump(build_roles_report(registry_path), sys.stdout, indent=2, sort_keys=True)
+            roles_report = build_roles_report(registry_path, home)
+            json.dump(roles_report, sys.stdout, indent=2, sort_keys=True)
             sys.stdout.write("\n")
             return 0
         registry = load_registry(registry_path)
+        receipts = load_receipts(resolve_home(home))
         print("== switchboard inspect --roles ==")
         print(f"  registry: {registry.state}")
         print(f"  registry source: {registry.source}")
+        _print_receipts(receipts)
         if registry.error is not None:
             print(f"  registry error: {registry.error}")
             return 0
-        _print_roles(registry.roles)
+        _print_roles(registry.roles, receipts)
         return 0
-    report = build_inspect_report(path, registry_path)
+    report = build_inspect_report(path, registry_path, home)
     if json_output:
         json.dump(report.to_json(), sys.stdout, indent=2, sort_keys=True)
         sys.stdout.write("\n")
@@ -530,6 +642,85 @@ def _run_apply(
     for message in errors:
         print(f"error: {message}", file=sys.stderr)
     return 1 if errors else 0
+
+
+def _observe_advise(message: str) -> None:
+    print(f"{OBSERVE_ADVISORY_PREFIX}{message}", file=sys.stderr)
+
+
+def _comparison_line(label: str, requested: str | None, observed: str) -> str:
+    """``  <label>: <status>``; a mismatch names both values."""
+    if requested is None:
+        return f"  {label}: not compared ({UNATTRIBUTED})"
+    status = field_status(requested, observed)
+    if status == "mismatch":
+        return f"  {label}: MISMATCH (requested {requested}, observed {observed})"
+    if status == "inherit":
+        return f"  {label}: inherit (the registry requests inherit; nothing to compare)"
+    if status == "unknown":
+        return f"  {label}: unknown (the transcript records no {label})"
+    return f"  {label}: match"
+
+
+def _print_observe_report(result: ObserveResult) -> None:
+    """The comparison report; printed after the append, so it never raises on encoding."""
+    receipt = result.receipt
+    if receipt.requested_model is None or receipt.requested_effort is None:
+        requested = f"none ({UNATTRIBUTED}: no role is guessed)"
+    else:
+        requested = f"{receipt.requested_model}/{receipt.requested_effort}"
+    for line in (
+        "== switchboard observe ==",
+        f"  host: {receipt.host}",
+        f"  transcript: {result.transcript}",
+        f"  agent type: {receipt.agent_type or 'none recorded'}",
+        f"  role: {receipt.role}",
+        f"  requested: {requested}",
+        f"  observed: {receipt.observed_model}/{receipt.observed_effort}",
+        _comparison_line("model", receipt.requested_model, receipt.observed_model),
+        _comparison_line("effort", receipt.requested_effort, receipt.observed_effort),
+        f"  receipt: appended to {result.receipts_path}",
+    ):
+        _print_encodable(line)
+
+
+def _run_observe(
+    *,
+    host: str,
+    transcript: str | None,
+    latest: bool,
+    project_dir: str | None,
+    home: str | None,
+    registry_path: str | None,
+) -> int:
+    """The ``observe`` subcommand: build the receipt, append it, then print the comparison.
+
+    ``switchboard.observe`` finds and reads the transcript and builds the receipt; this appends
+    and presents it. Returns 0 when the receipt was appended, 1 when the append failed, 2 when
+    no receipt could be made (nothing written, one advisory line).
+    """
+    try:
+        result = prepare_observation(
+            host=host,
+            transcript=transcript,
+            latest=latest,
+            project_dir=project_dir,
+            home=home,
+            registry_path=registry_path,
+        )
+    except ObserveInputError as exc:
+        _observe_advise(str(exc))
+        return 2
+    for line in result.advisories:
+        _observe_advise(line)
+    try:
+        append_receipt(result.receipts_path, result.receipt)
+    except OSError as exc:
+        message = f"could not append the receipt to {result.receipts_path}: {exc}"
+        print(f"error: {message}", file=sys.stderr)
+        return 1
+    _print_observe_report(result)
+    return 0
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -637,6 +828,13 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="report only the role registry table; never reads config or probes the endpoint",
     )
+    inspect_cmd.add_argument(
+        "--home",
+        dest="home",
+        default=None,
+        help="the home directory holding .switchboard/receipts.jsonl, the source of each row's "
+        "observed value (default: the user's home directory)",
+    )
 
     apply_cmd = sub.add_parser(
         "apply",
@@ -674,6 +872,50 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help='a spawn-site catalog {"schema_version": 1, "sites": {site: role|inherit}}; '
         "prints an advisory for each catalog role with no registry row",
+    )
+
+    observe_cmd = sub.add_parser(
+        "observe",
+        help="record which model and effort a role dispatch ran, from a native host transcript",
+    )
+    observe_cmd.add_argument(
+        "--host",
+        dest="host",
+        required=True,
+        choices=ALLOWED_HOSTS,
+        help="the host whose transcript is read",
+    )
+    source_group = observe_cmd.add_mutually_exclusive_group(required=True)
+    source_group.add_argument(
+        "--transcript",
+        dest="transcript",
+        default=None,
+        help="the transcript file to read (a Claude subagent transcript or a Codex rollout)",
+    )
+    source_group.add_argument(
+        "--latest",
+        action="store_true",
+        help="read the most recently modified subagent transcript under --home",
+    )
+    observe_cmd.add_argument(
+        "--project-dir",
+        dest="project_dir",
+        default=None,
+        help="with --latest, only transcripts of sessions started in this directory",
+    )
+    observe_cmd.add_argument(
+        "--home",
+        dest="home",
+        default=None,
+        help="the home directory holding .claude, .codex and .switchboard "
+        "(default: the user's home directory)",
+    )
+    observe_cmd.add_argument(
+        "--registry",
+        dest="registry",
+        default=None,
+        help="read a specific role registry file instead of $SWITCHBOARD_REGISTRY or the "
+        "committed registry/models.json",
     )
     return parser
 
@@ -714,7 +956,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_config(args.path)
 
     if args.command == "inspect":
-        return _run_inspect(args.path, args.json, args.roles, args.registry)
+        return _run_inspect(args.path, args.json, args.roles, args.registry, args.home)
 
     if args.command == "apply":
         return _run_apply(
@@ -723,6 +965,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             home=args.home,
             registry_path=args.registry,
             catalog_path=args.catalog,
+        )
+
+    if args.command == "observe":
+        if args.project_dir is not None and not args.latest:
+            parser.error("--project-dir requires --latest")
+        return _run_observe(
+            host=args.host,
+            transcript=args.transcript,
+            latest=args.latest,
+            project_dir=args.project_dir,
+            home=args.home,
+            registry_path=args.registry,
         )
 
     # argparse `required=True` on the subparser makes this unreachable, but keep it total.

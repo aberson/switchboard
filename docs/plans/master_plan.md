@@ -1527,15 +1527,33 @@ measure-twice build or release.
 - **Type:** code
 - **Issue:** #573
 - **Flags:** --reviewers deep --isolation worktree
+- **Status:** BLOCKED (2026-11-09)
 - **Files:** `switchboard/switchboard/observe.py` (new), `switchboard/switchboard/cli.py`,
   `switchboard/tests/test_observe.py` (new), `switchboard/tests/fixtures/observe/` (new, synthetic),
-  `switchboard/docs/observatory-contract.json`, `switchboard/README.md`
+  `switchboard/docs/observatory-contract.json`, `switchboard/README.md`. Also touched, as
+  recorded at build time: `switchboard/switchboard/registry.py` (`RegistryResult.sha256`, the
+  digest of the registry bytes that `registry_sha256` names), `switchboard/tests/test_cli.py` (the
+  inspect row's new `observed` key; the test home isolated like `test_generate.py`),
+  `switchboard/docs/observatory-contract.md` (its own update rule) and `switchboard/CLAUDE.md`
+  (the `observe` commands).
 - **Produces:**
   - `python -m switchboard observe --host claude|codex (--transcript <path> | --latest [--project-dir <dir>])`.
-    It reads only model, effort and agent-type metadata, never message content.
+    It reads only model, effort and agent-type metadata, never message content. Recorded at build
+    time: `observe` also takes `--home <dir>` (default the user's home, holding `.claude`, `.codex`
+    and `.switchboard`) and `--registry <path>`, and `inspect` takes `--home`, so tests and drivers
+    can point at a temporary home and registry.
   - Each run appends a receipt to `~/.switchboard/receipts.jsonl`: `{ts, host, role, requested_model,
     requested_effort, observed_model, observed_effort|UNKNOWN, source_locator, registry_sha256}`.
+    Recorded at build time: the receipt also carries `agent_type` (what the host recorded, `null`
+    for none, kept on an `unattributed` receipt so the reason is visible without guessing a role),
+    and a run whose transcript records no model writes nothing (exit 2, one advisory line): it is
+    not evidence of a dispatch.
   - `inspect --roles` shows each host's latest `observed` value, or `unknown` when there is none.
+    Recorded at build time: each observed value carries `model_status` and `effort_status`
+    (`match`, `mismatch`, `inherit` or `unknown`) against the current pin, which is how a mismatch
+    is displayed (a `MISMATCH` line in the text view), and the report adds `receipts_state`
+    (`absent`, `ok` or `invalid`), `receipts_source` and `receipts_error`; all additive within
+    inspect schema 3 and mirrored in `docs/observatory-contract.json`.
 - **Done when:** Field names are taken from one real transcript per host, captured at build time and
   recorded in the module docstring; fixture content is synthetic. The fixtures round-trip through
   `python -m switchboard observe` into a receipt and into `inspect --roles --json`. A transcript that

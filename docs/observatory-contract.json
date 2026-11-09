@@ -70,6 +70,18 @@
       "online-model-missing",
       "online-model-served"
     ],
+    "observed_statuses": [
+      "match",
+      "mismatch",
+      "inherit",
+      "unknown"
+    ],
+    "observed_unknown": "unknown",
+    "receipts_states": [
+      "absent",
+      "ok",
+      "invalid"
+    ],
     "registry_states": [
       "absent",
       "invalid",
@@ -88,6 +100,9 @@
       "registry_state",
       "registry_source",
       "registry_error",
+      "receipts_state",
+      "receipts_source",
+      "receipts_error",
       "roles",
       "error",
       "limitations"
@@ -99,17 +114,29 @@
       "claude",
       "codex",
       "claim_id",
-      "evidence"
+      "evidence",
+      "observed"
     ],
     "role_host_fields": [
       "model",
       "effort"
+    ],
+    "role_observed_fields": [
+      "model",
+      "effort",
+      "model_status",
+      "effort_status",
+      "ts",
+      "source_locator"
     ],
     "roles_view_fields": [
       "schema_version",
       "view",
       "registry_state",
       "source",
+      "receipts_state",
+      "receipts_source",
+      "receipts_error",
       "roles",
       "error"
     ],
@@ -134,6 +161,38 @@
     ]
   },
   "owner": "switchboard",
+  "receipts": {
+    "attribution": "role is <role> only when the host recorded the agent type role-<role> and the registry has that row; otherwise unattributed, with requested_model and requested_effort null",
+    "content": "metadata only: model, effort and agent-type values from a host transcript; never message content",
+    "directory_name": ".switchboard",
+    "fields": [
+      "ts",
+      "host",
+      "role",
+      "agent_type",
+      "requested_model",
+      "requested_effort",
+      "observed_model",
+      "observed_effort",
+      "source_locator",
+      "registry_sha256"
+    ],
+    "filename": "receipts.jsonl",
+    "hosts": [
+      "claude",
+      "codex"
+    ],
+    "latest_rule": "inspect uses the last valid receipt line per role and host and compares it with the current registry row",
+    "multi_value_separator": "|",
+    "nullable_fields": [
+      "agent_type",
+      "requested_model",
+      "requested_effort",
+      "registry_sha256"
+    ],
+    "unattributed_role": "unattributed",
+    "unknown_effort": "UNKNOWN"
+  },
   "registry": {
     "claim_statuses": [
       "MEASURED",

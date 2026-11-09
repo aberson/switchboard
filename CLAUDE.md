@@ -33,6 +33,9 @@ uv run python -m switchboard apply
 uv run python -m switchboard apply --write
 # also remove ledger-owned, unedited role files whose role left the registry
 uv run python -m switchboard apply --prune --write
+# record which model/effort the newest role dispatch ran (appends ~/.switchboard/receipts.jsonl)
+uv run python -m switchboard observe --host claude --latest
+uv run python -m switchboard observe --host codex --latest
 # config-only validation (does not launch or probe the endpoint)
 uv run python -m switchboard config
 # deterministic recorded evidence; writes report.md, scores.jsonl, and bakeoff.json

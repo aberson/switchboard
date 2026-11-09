@@ -1,8 +1,8 @@
 # Switchboard observatory contract
 
-`observatory-contract.json` is Switchboard's versioned, producer-owned configuration, registry and
-inspection contract (fixture `schema_version` 2). It is a static fixture, not a live probe and not
-authority to enable or launch anything. Consumers may display it beside a current
+`observatory-contract.json` is Switchboard's versioned, producer-owned configuration, registry,
+receipt and inspection contract (fixture `schema_version` 2). It is a static fixture, not a live
+probe and not authority to enable or launch anything. Consumers may display it beside a current
 `python -m switchboard inspect --json` result.
 
 The `config` section names every accepted config field, the exact filename and selection
@@ -17,16 +17,24 @@ The `registry` section describes the committed `registry/models.json` (registry 
 levels, and the model rules (exact IDs or `inherit`; no bare aliases; no model containing
 `fable` in any case, so no `claude-fable-*`).
 
+The `receipts` section describes the private `~/.switchboard/receipts.jsonl` that
+`python -m switchboard observe` appends to: its receipt fields, which of them may be null, the
+`unattributed` role, the `UNKNOWN` effort, the `|` that joins several observed values, and the
+attribution and latest-receipt rules. Receipts hold metadata from host transcripts only, never
+message content.
+
 The `inspect` section (inspect `schema_version` 3) names every report and roles-view field, the
-role row and host-pin fields, and every inspect, endpoint and registry state. Role rows are
-requested values only: switchboard does not dispatch by role.
+role row and host-pin fields, each row's per-host `observed` fields and statuses, and every
+inspect, endpoint, registry and receipts state. Role pins are requested values: switchboard does
+not dispatch by role. An `observed` value is only the last receipt recorded for that role and
+host, compared with the current pin, or `unknown`.
 
 ## Update rule
 
 When changing any config field, default, source path, validation boundary, registry field or rule,
-or inspect field or state, update this JSON fixture in the same change. `tests/test_config.py`,
-`tests/test_cli.py` and `tests/test_registry.py` compare the fixture with runtime constants and
-real report shapes, so an unpaired change fails CI.
+receipt field or rule, or inspect field or state, update this JSON fixture in the same change.
+`tests/test_config.py`, `tests/test_cli.py`, `tests/test_registry.py` and `tests/test_observe.py`
+compare the fixture with runtime constants and real report shapes, so an unpaired change fails CI.
 
 ## Consumer boundary
 

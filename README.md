@@ -37,6 +37,10 @@ Built to the D1 contract pinned in
 - `switchboard/generate.py` — `apply`: renders each registry row into host-native role files
   (`<home>/.claude/agents/role-<role>.md`, `<home>/.codex/agents/role-<role>.toml`) under an
   ownership ledger (`<home>/.switchboard/generated.json`). See "Generating role files" below.
+- `switchboard/observe.py` — `observe`: reads one native Claude or Codex transcript's model,
+  effort and agent-type metadata and appends a requested-versus-observed receipt to
+  `<home>/.switchboard/receipts.jsonl`; `inspect --roles` shows the latest one per role and host.
+  See "Recording what ran" below.
 - `switchboard/health.py` — `health()` / `is_warm()` / `warm_up()` reachability + warmth
   probes against `{base_url}/models`.
 - `switchboard/metrics.py` — `Metrics`: in-process counter (total / verdicts / defers-by-
@@ -64,9 +68,11 @@ Built to the D1 contract pinned in
   `read_only`, `description` and `evidence`). It never reads config or probes the endpoint, so an
   external driver can read the table without importing this package. `--registry <path>` reads a
   candidate file. `registry_state` is `ok`, `absent` or `invalid` (with `error`), always exit 0.
-  Rows are requested values: nothing in switchboard, including `local_judge`, dispatches by role.
-  `inspect --json` carries the same rows plus `registry_state`, `registry_source` and
-  `registry_error`.
+  Row pins are requested values: nothing in switchboard, including `local_judge`, dispatches by
+  role. Each row also carries `observed`, per host the last receipt `observe` recorded (or
+  `unknown`), with `receipts_state`, `receipts_source` and `receipts_error` beside it (`--home
+  <dir>` selects the receipts home). `inspect --json` carries the same rows plus
+  `registry_state`, `registry_source` and `registry_error`.
 - `uv run python -m switchboard config` is the loud validation pre-flight. It resolves and validates
   config without probing or starting the endpoint. Use `--path` before installing a candidate file.
 - `uv run python -m switchboard bakeoff --suite suites\review-deep-style.json --output-dir _tmp`
@@ -77,6 +83,8 @@ Built to the D1 contract pinned in
   non-destructive; the one-time icon installer remains convenience setup, not a dashboard action.
 - `uv run python -m switchboard apply` previews, and `apply --write` writes, the role files the
   registry defines (next section).
+- `uv run python -m switchboard observe --host claude|codex --latest` records which model and
+  effort the newest role dispatch actually ran ("Recording what ran" below).
 
 ## Generating role files (`apply`)
 
@@ -162,6 +170,64 @@ last-generated files stay byte-identical.
 
 `apply` writes role definitions only. Whether a host dispatch honors them is proven live
 (Step R5), not by these tests.
+
+## Recording what ran (`observe`)
+
+```powershell
+# after a dispatch by role: record the newest subagent transcript's model and effort
+uv run python -m switchboard observe --host claude --latest
+uv run python -m switchboard observe --host codex --latest
+# only sessions started in one directory, or one named transcript
+uv run python -m switchboard observe --host claude --latest --project-dir <project-dir>
+uv run python -m switchboard observe --host claude --transcript <agent-transcript.jsonl>
+# each role's latest observed value beside its requested pin
+uv run python -m switchboard inspect --roles
+```
+
+Options: `--home <dir>` (default: your home directory; it holds `.claude`, `.codex` and
+`.switchboard`) and `--registry <path>` (same resolution as `inspect`). Each run reads one
+native transcript and appends one line to the private `<home>/.switchboard/receipts.jsonl`:
+
+```json
+{"ts": "2026-11-08T12:00:00.000000Z", "host": "claude", "role": "reviewer", "agent_type": "role-reviewer", "requested_model": "claude-sonnet-5-5", "requested_effort": "inherit", "observed_model": "claude-sonnet-5-5", "observed_effort": "medium", "source_locator": "C:\\...\\subagents\\agent-<id>.jsonl", "registry_sha256": "<sha256 of the registry bytes>"}
+```
+
+- **Metadata only.** Claude: the `"type": "assistant"` lines' `message.model`, `effort` and
+  `attributionAgent` (the agent type). Codex: the thread's own `session_meta`
+  (`payload.source.subagent.thread_spawn.agent_role`, and `payload.subagent_history_start_ordinal`,
+  before which a fork's lines are inherited parent history and are not counted) and its own
+  `turn_context` lines' `payload.model` and `payload.effort`. No message content is read into a
+  receipt or printed. The names were captured from real transcripts (Claude Code 2.1.318, Codex
+  CLI 0.155.0-alpha.16.3); the `switchboard/observe.py` docstring records which. The test
+  fixtures (`tests/fixtures/observe/`) use the same names with synthetic content.
+- **No guessing.** `role` is `<role>` only when the host recorded the agent type `role-<role>`
+  and the registry has that row. No agent type, several, or one that is not a role agent (such
+  as `general-purpose`) gives `"role": "unattributed"` with `requested_*` null; the receipt is
+  still written, keeps what the host recorded in `agent_type`, and never joins a row.
+- **Values.** `observed_effort` is `UNKNOWN` when the transcript records no effort. Several
+  distinct models (or efforts) are all kept, joined by `|`, so a mixed run never reads as a
+  match. `<synthetic>` (host-made) messages are skipped. A transcript with no model metadata
+  writes nothing.
+- **`--latest`** reads the most recently modified subagent transcript (a main session is never
+  picked): Claude `<home>/.claude/projects/<project>/<session>/subagents/**/agent-*.jsonl`
+  (`--project-dir` selects that directory's project folder: every character other than an ASCII
+  letter or digit becomes `-`), Codex `<home>/.codex/sessions/**/rollout-*.jsonl` whose own
+  `session_meta` is a spawned subagent (`--project-dir` matches its `cwd`).
+- **Display.** `observe` prints the requested and observed values, then per value `match`,
+  `MISMATCH (requested X, observed Y)`, `inherit` (the row requests inherit; nothing to compare)
+  or `unknown`. `inspect --roles` prints, under each role, its last receipt per host compared
+  with the CURRENT row, plus one `MISMATCH <host> <model|effort>: requested X, observed Y` line
+  per mismatch. With `--json`, each row's `observed` is `{"claude": ..., "codex": ...}`, each
+  `{model, effort, model_status, effort_status, ts, source_locator}` or `"unknown"`, and
+  `receipts_state` is `absent`, `ok` or `invalid` (malformed lines are skipped and counted in
+  `receipts_error`). In the text views a character the console cannot encode (a non-Latin path
+  on a cp1252 console, say) is printed as a backslash escape rather than failing.
+- **Exit codes.** `0`: the receipt was appended (an unattributed one included). `1`: the append
+  failed. `2`: the registry is not `ok`, `--home` is not a directory, or no readable transcript
+  with model metadata was found; nothing is written and exactly one advisory line (prefixed
+  `switchboard observe: `) is printed. `--project-dir` without `--latest` is a usage error.
+
+`observe` only reads transcripts the hosts already wrote. Live dispatches are proven by Step R5.
 
 ## Key contract points
 

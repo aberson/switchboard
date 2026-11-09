@@ -17,6 +17,7 @@ writes a host file; ``inspect --roles`` renders the requested values only.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -314,12 +315,17 @@ def parse_roles(document: object) -> tuple[RoleRow, ...]:
 
 @dataclass(frozen=True, slots=True)
 class RegistryResult:
-    """The outcome of ``load_registry``: a state, the selected source, and rows when ok."""
+    """The outcome of ``load_registry``: a state, the selected source, and rows when ok.
+
+    ``sha256`` is the hex digest of the exact bytes the ``ok`` rows were parsed from (``None``
+    otherwise), so a record can name the registry version it was made against.
+    """
 
     state: RegistryState
     source: str
     roles: tuple[RoleRow, ...]
     error: str | None
+    sha256: str | None = None
 
 
 def _default_registry_path() -> Path:
@@ -394,10 +400,10 @@ def load_registry(path: str | None = None) -> RegistryResult:
             error=f"registry file not found: {candidate!r}",
         )
     try:
-        # utf-8-sig: a BOM (PowerShell 5.1 ``Set-Content -Encoding utf8`` adds one) is not an
-        # invalid registry.
-        with p.open(encoding="utf-8-sig") as fh:
-            document = json.load(fh, object_pairs_hook=_reject_duplicate_keys)
+        # Read once: the digest names exactly the bytes the rows come from. utf-8-sig: a BOM
+        # (PowerShell 5.1 ``Set-Content -Encoding utf8`` adds one) is not an invalid registry.
+        data = p.read_bytes()
+        document = json.loads(data.decode("utf-8-sig"), object_pairs_hook=_reject_duplicate_keys)
         roles = parse_roles(document)
     except RegistryError as exc:
         return RegistryResult(state="invalid", source=source, roles=(), error=str(exc))
@@ -410,4 +416,10 @@ def load_registry(path: str | None = None) -> RegistryResult:
             roles=(),
             error=f"could not read registry {candidate!r}: {exc}",
         )
-    return RegistryResult(state="ok", source=source, roles=roles, error=None)
+    return RegistryResult(
+        state="ok",
+        source=source,
+        roles=roles,
+        error=None,
+        sha256=hashlib.sha256(data).hexdigest(),
+    )

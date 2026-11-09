@@ -31,6 +31,7 @@ from switchboard.cli import (
 from switchboard.config import SwitchboardConfig
 from switchboard.health import ENDPOINT_STATUSES
 from switchboard.metrics import METRICS, Metrics
+from switchboard.observe import INSPECT_ROLE_FIELDS
 from switchboard.registry import (
     ALLOWED_HOSTS,
     ALLOWED_ROLES,
@@ -55,11 +56,18 @@ def _isolate_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """``main()`` now calls ``load_config()``; keep every CLI test hermetic from the operator's
     real ``$SWITCHBOARD_CONFIG`` and ``~/.switchboard/config.json``. Tests that exercise the
     loader opt back in by re-setting the env / passing --path (an explicit source beats the
-    absent home this fixture installs).
+    absent home this fixture installs). ``inspect`` also reads ``~/.switchboard/receipts.jsonl``,
+    so ``Path.home()``, ``HOME`` and ``USERPROFILE`` point at an empty temporary home too (the
+    same three patches as ``tests/test_generate.py`` and ``tests/test_observe.py``).
     """
     monkeypatch.delenv("SWITCHBOARD_CONFIG", raising=False)
     monkeypatch.delenv(REGISTRY_ENV_VAR, raising=False)
     monkeypatch.setattr("switchboard.config._default_config_path", lambda: tmp_path / "absent.json")
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setenv("USERPROFILE", str(home))
+    monkeypatch.setattr(Path, "home", staticmethod(lambda: home))
 
 
 # --- run_judge: gating short-circuit is inert (no network) -------------------------------
@@ -466,12 +474,17 @@ def test_observatory_contract_matches_inspect_runtime_shape(
         "offload_allowed",
         "effort_hint",
     ]
-    assert inspect_contract["role_fields"] == list(ROLE_JSON_FIELDS)
+    # An inspect row is the registry row plus its per-host observed value (Step R3).
+    assert inspect_contract["role_fields"] == list(INSPECT_ROLE_FIELDS)
+    assert INSPECT_ROLE_FIELDS == (*ROLE_JSON_FIELDS, "observed")
     assert inspect_contract["role_host_fields"] == list(HOST_PIN_FIELDS)
     row = build_roles_report()["roles"][0]  # type: ignore[index]
     assert list(row) == inspect_contract["role_fields"]
     for host in ALLOWED_HOSTS:
         assert list(row[host]) == inspect_contract["role_host_fields"]
+    # No receipts in the (empty, temporary) home: every host reads unknown, never a value.
+    assert row["observed"] == dict.fromkeys(ALLOWED_HOSTS, inspect_contract["observed_unknown"])
+    assert list(build_inspect_report().to_json()["roles"][0]) == inspect_contract["role_fields"]  # type: ignore[index]
 
 
 # --- inspect --roles --json: the committed registry table for an external driver ----------
