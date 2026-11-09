@@ -2152,6 +2152,8 @@ Operator step R4 (#574, park local offload) is DONE (2026-11-08; its issue is st
   |---|---|
   | path = _expand_user(transcript, "give --transcript as a full path") (reason: The step's remaining gap names only the unguarded Path.home() case in inspect. The diff also adds a '~' expansion guard for --home and for observe's --transcript. These are not named in the step. They add the new HomeUnavailableError class, the _expand_user helper, a new exit-2 case for an unexpandable ~ in --transcript, README exit-code text, and the 'home-tilde', 'transcript-tilde' and test_a_home_tilde_that_cannot_expand_is_reported_as_data tests. The additions have the same root cause as the named gap, the RuntimeError from pathlib. The --home tilde guard on inspect is arguably part of the same fix. The --transcript expansion on observe goes beyond the Problem's 'inspect ... report as data' scope and the Produces list. I judged this an adjacent hardening and not a separate feature, so I rated it Nit and not Block. The operator should note the added scope.; check: none) | You accept the added scope. It is already recorded in R3's Produces build-time amendment, with the remaining unguarded `Path.home()` sites owned by #582. |
 
+- **Outcome:** accepted by the operator 2026-11-09 (the scope is recorded in R3's Produces; #582 owns the rest).
+
 ### M2: Live role-dispatch probe
 - **Source step:** Step R5 (from this plan's Track R)
 - **Issue:** #575
@@ -2184,3 +2186,5 @@ Operator step R4 (#574, park local offload) is DONE (2026-11-08; its issue is st
   | Path 3: `claude -p` on the updated PATH `claude.exe`, then `observe --host claude --latest` | `DONE` printed; a receipt with `observed_model == requested_model` |
   | Path 4: Codex spawn of `role-builder`, then `observe --host codex --latest` | `DONE` printed; a receipt with `observed_model == requested_model` |
   | `inspect --roles` | Each host's latest observed value is shown. Observed effort is recorded, or `UNKNOWN` with the reason. A failing path is recorded, its migration is HELD, and the plan returns to plan-redline for that path (R-D9) |
+
+- **Outcome:** passed 2026-11-09 on all four paths (R5 Status line; #575 closed).
