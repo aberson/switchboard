@@ -19,7 +19,7 @@ defers with no network call. Full detail in [`README.md`](README.md); plans live
 
 ```powershell
 uv sync --extra dev
-uv run pytest -q
+uv run pytest
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy --strict switchboard
