@@ -1,6 +1,6 @@
 # Switchboard master plan
 
-Source-scoped IDs B1-B4 = original Phase B Steps 1-4; O70-O74 = operator surfaces; P1-P7 = <friend-project> Phase 2; T1-T10 = proposed switchboard-tune sibling. Internal step references inside a track retain that source track namespace.
+Source-scoped IDs B1-B4 = original Phase B Steps 1-4; O70-O74 = operator surfaces; P1-P7 = <friend-project> Phase 2; T1-T10 = proposed switchboard-tune sibling; R1-R10 = model registry track (R-SM1 to R-SM4 and R-MT1 are handoff blocks for skill-mesh and measure-twice, not steps of this plan). Internal step references inside a track retain that source track namespace.
 
 Proposal: [reconciliation](../plan-reconciliation/proposal.html). Original source bytes: [move map](../plan-reconciliation/source-map.md).
 
@@ -33,6 +33,10 @@ Provides an operator-readable routing/config/health report, promotes the determi
 and resolves stale or one-time launcher buttons without changing fail-open routing semantics.
 
 Proposal: [Utility Projects UAT proposal](../../../docs/utility-project-surfaces-proposal.html)
+
+**2026-11-08 charter change:** switchboard also becomes the model registry, the one committed table of
+role to per-host model and effort. Local offload is parked. See the
+[model registry track](#model-registry-track-r).
 
 ## Principles
 
@@ -101,7 +105,7 @@ Completed gates are historical evidence. Manual acceptance remains manual; no li
 
 ## Track structure
 
-A completed config-loader Phase A and accepted core supply the shared substrate. B1/B2/B4 and O70-O73 have recorded DONE status. B3 and O74 remain distinct live acceptances. P1-P6 record completion on external feature branches, with visual smoke still owed in P7. T1-T10 remain proposed; T10 is conditional. Original umbrella B1/B2/B3 descriptions are subsumed by concrete B1-B4, not additional work.
+A completed config-loader Phase A and accepted core supply the shared substrate. B1/B2/B4 and O70-O73 have recorded DONE status. B3 and O74 remain distinct live acceptances. P1-P6 record completion on external feature branches, with visual smoke still owed in P7. T1-T10 remain proposed; T10 is conditional. Original umbrella B1/B2/B3 descriptions are subsumed by concrete B1-B4, not additional work. R1-R10 (model registry, added 2026-11-08): R4 is DONE (2026-11-08), the rest are not started; Phase R-A (R1-R3, R5) is buildable now, and later R phases wait on external handoff blocks and Toolkit program unit U04.
 
 ## Decision graph
 
@@ -113,6 +117,9 @@ P1 -> P2 -> P3 -> P4; P5 -> P6; P4 + P6 -> P7 external UAT/PRs
 T1 -> T2 -> T3 -> T4 real substrate smoke -> T5 baseline -> T6 SFT
  -> T7 honest comparison -> T8 certify/report -> T9 operator decision
 T7 -> T10 only if declared disagreement predicate passes
+R1 -> R2 -> R5 live probe; R1 -> R3 -> R5; R4 independent (operator)
+R1 -> R-MT1 (external) -> R6; R5 -> R7; R7 + R-SM2 (external) -> R8
+R1 + R2 + R5 -> R-SM1 -> R-SM2 -> R-SM3 -> R-SM4 (external); R-SM4 -> R9; R8 + R9 -> R10
 ```
 
 ## Baseline
@@ -1150,7 +1157,726 @@ but set `HF_HOME=~/.cache/huggingface` and write checkpoints, merged weights, an
 path such as `~/switchboard-tune-work/`, copying only the final GGUF and the `results/*.json` files back
 into the repo.
 
+---
 
+### Model registry track (R)
+
+Source seed: [seed_model_registry.md](../../../docs/seeds/seed_model_registry.md) (operator decision
+2026-11-08). Steps R1-R10 are executable in this plan. Blocks R-SM1 to R-SM4 (skill-mesh) and R-MT1
+(measure-twice) are **handoff blocks**, not steps of this plan. Each target repository adopts them into
+its own master plan and runs its own review, sync and build there (decision R-P2). Paths in this track are
+workspace-relative from `<coding-root>` (`switchboard/`, `skill-mesh/`, `measure-twice/`,
+`.claude/`, `docs/`).
+
+Proposal: docs/plan-redline/switchboard-proposal.html (plan-redline view of this track; the decision
+handles are in "Decision Inventory (model registry track)" at the end of this plan).
+
+#### What this feature does
+
+When a new model ships:
+
+1. measure-twice benchmarks it against the model a role uses now.
+2. If it wins and the operator approves, one row of a committed switchboard table changes.
+3. `python -m switchboard apply --write` regenerates that role's host definitions.
+4. Every skill helper launched under that role, on Claude and on Codex, then runs the new model and
+   effort. No skill-mesh edit, release or reinstall is needed.
+
+The same table is the one place to read what runs what and how strong the evidence is. The beneficiary
+is the operator: cost and quality control over about 4,500 subagent launches a month, 57% of which
+inherit Opus at xhigh today. Toolkit program unit U04
+([plan.md](../../../plan.md) line 390, contract line 429) owns program selection and status for this
+work. Its bar is "a real supported dispatch consumes settings and exposes requested/applied values".
+
+**Charter change.** Switchboard grows from local judge offload into the model registry. Local offload
+is parked (R4). Its code stays inert, and Decision 3 (`build-step-style` false) and the zero-dependency
+rule stand. This reverses closed decision 1 of
+[seed_spawn_site_model_pinning.md](../../../docs/seeds/seed_spawn_site_model_pinning.md) and answers
+open question 5 of the
+[lane-6 groundwork](../../../docs/skill-mesh-3-review/lane-6-model-pinning-groundwork.md).
+
+#### Existing context
+
+Verified 2026-11-08 against producing files.
+
+- **Shipped report-only table (commit 79834f05).** `switchboard/switchboard/config.py:62-86` defines
+  `ALLOWED_ROLES` (10 playbook roles), `ROLE_PIN_FIELDS` (`provider, model, tier, claim_id`),
+  `ALLOWED_ROLE_PROVIDERS` (`claude, codex, local`) and `CLAIM_STATUSES` (a mirror of measure-twice's
+  `ClaimStatus`). `resolve_roles` is at `:334`, and the `SwitchboardConfig.roles` and `claims` fields
+  at `:191-192`. `inspect --roles --json` is `build_roles_report` (`switchboard/switchboard/cli.py:359-385`)
+  with `INSPECT_SCHEMA_VERSION = 2` (`cli.py:87`). The contract fixture carries both fields
+  (`switchboard/docs/observatory-contract.json:6,13,22-23,105-125`). The live `~/.switchboard/config.json`
+  holds neither key, and nothing outside the package reads them.
+- **Spawn sites (skill-mesh `main` at 6ad9174).** There are 42 dispatch loci:
+  - 27 in the cores and adapters of 19 skills;
+  - 3 in the installed `.claude/skills/goblin-suggest/goblin_suggest.workflow.js`;
+  - 12 in workflow scripts: `skill-mesh/_shared/score_skill.workflow.js` (5),
+    `skill-mesh/skill-iterate/scripts/m2_launcher.workflow.js` (2, legacy top-level path) and
+    `.claude/workflows/deep-research-pinned.js` (5).
+
+  Only 14 Claude loci write `model:`, mostly `sonnet`, and one writes an effort
+  (`deep-research-pinned.js:224`, `low`). `score_skill.workflow.js` pins nothing, which makes it the
+  largest unpinned fan-out. Codex pins `gpt-5.6-sol` in three adapters
+  (`skill-mesh/skills/build-step/providers/codex.md:8`, `skills/user-learn/providers/codex.md:11`,
+  `skills/judge-ui/providers/codex.md:10`); the other Codex arms resolve the "closest capability". No
+  test enumerates spawn sites. `skill-eval-setup` spawns helpers but is missing from `SUB_AGENT`
+  (`skill-mesh/tools/gen_manifest.py:162-193`).
+- **Claude mechanics** ([sub-agents](https://code.claude.com/docs/en/sub-agents.md),
+  [model-config](https://code.claude.com/docs/en/model-config.md)).
+  - Agent frontmatter accepts `model` (an alias, a full ID, or `inherit`) and `effort`. Unknown keys are
+    ignored.
+  - Model precedence: per-call parameter, then frontmatter, then `CLAUDE_CODE_SUBAGENT_MODEL`, then the
+    parent. `CLAUDE_CODE_SUBAGENT_MODEL_FORCE` and `CLAUDE_CODE_EFFORT_LEVEL` defeat per-agent values.
+    The per-call Agent `model` takes aliases only.
+  - Project `.claude/agents` beats user `~/.claude/agents`. Files hot-reload, except the first file in a
+    new directory.
+  - Workflow `agent()` takes `agentType` (resolved from the same registry as the Agent tool), `model` and
+    `effort` (workflow-authoring reference). That `agentType` honors frontmatter is only implied by the
+    docs.
+  - The VS Code CLI is 2.1.319 and the PATH `claude.exe` is 2.1.287. The per-call effort parameter needs
+    2.1.292; the version that added frontmatter `effort` is undocumented.
+- **Codex mechanics** (CLI 0.147.0;
+  [subagents docs](https://learn.chatgpt.com/docs/agent-configuration/subagents)). Custom agents are
+  TOML files in `~/.codex/agents/` with `name`, `description`, `developer_instructions`, and optional
+  `model` and `model_reasoning_effort`. A value in the file beats a spawn-time value. Named profiles are
+  session-level only. `~/.codex/agents` does not exist yet.
+- **Install surface.** The skill-mesh installer writes only `<home>/.claude/skills/**` (and
+  `.agents/skills` for Codex) plus `<home>/.skill-mesh-install.json`
+  (`skill-mesh/tools/install-skill-mesh.ps1:7-25,40-66`). `.claude/agents` appears nowhere in skill-mesh
+  tooling, so a switchboard-owned writer there does not collide with it. That writer still inherits the
+  Step-65/#116 destructive-authority rule: classify per file, never act on a marker alone, and require
+  ledger membership plus a current-byte hash (`skill-mesh/documentation/host-parity-repair-plan.md`
+  from line 291 and from line 480).
+- **Evidence.**
+  - `measure-twice/data/ledger/claims.jsonl` holds 28 claims: 25 ASSERTED, 2 PARTIAL and 1 MEASURED
+    (`deep-research-sonnet-arms-a3`). Claim fields are at `measure-twice/measure_twice/ledger.py:165-193`,
+    with no role or model field.
+  - The CLI actions are `list|audit|render` only (`cli.py:745-752`). A claim goes STALE only when
+    `audit` finds a quote-hash mismatch (`ledger.py:436-472`).
+  - measure-twice depends on switchboard (`pyproject.toml:6,35`), so switchboard cannot import it.
+  - X-versus-Y benchmarking (`mt run --models X,Y --preregister` plus `mt report --compare`) exists. Its
+    live qualification failed (Step 58), and its Codex arms are unbuilt (Steps 66-70).
+- **Other pin holders.**
+  - `~/.claude/settings.json`: `model: opus`, `effortLevel: xhigh`, `modelSettings`, `ultracode: false`.
+  - Stale "Opus 4.8" at `.claude/workspace-instructions.md:12` and `.claude/references/model-tiering.md:7,9`,
+    and the stale `claude-fable-5` at `workspace-instructions.md:12` and `model-tiering.md:17,54` (settings
+    pin `claude-fable-5-1`). The usage review's Q1 window fixed these, then backed the fix out in
+    `4f4868a8` because R9 owns them. `skill-mesh/skills/research-prospect/core.md:65` cites the
+    `model-tiering.md` heading "Default: Opus 4.8 + Sonnet fan-out" by name. `workspace-instructions.md`
+    lines 12 and 69 differ between HEAD and the working tree, pending an operator decision.
+  - The only automatic Fable dispatch is build-step's phone-a-friend arm, `model: fable`
+    (`skill-mesh/skills/build-step/providers/claude.md:14`), sanctioned by `model-tiering.md:30-55`.
+    The deep-research-pinned header (`:15`) advises `/model claude-fable-5` before invoking. Other
+    skill-mesh mentions are "Run in ... Model: Fable" suggestions the operator acts on by hand
+    (`build-step/core.md:775`, `research-prospect/core.md:143`).
+  - `~/.codex/config.toml` (`gpt-6-astra`, high) and `toolkit-builder.config.toml` (`gpt-5.6-sol`, medium).
+  - Hand-kept `.claude/references/model-tier-map.json` and `model-mapping.md`.
+  - The unmerged skill-mesh branch `v3/w3-pin-ledger`: one commit, 8c22596, with 67 report-only rows,
+    every `observed` value unknown.
+- **Concurrent owners (2026-11-08).**
+  - The skill-mesh working tree is dirty with the user-build-route work (`tools/gen_manifest.py`,
+    `config/model-mapping.json`, manifest, inventory).
+  - measure-twice's master plan is untracked, mid-reconciliation.
+  - In the coding root, `.claude/references/model-tiering.md` and `.claude/workspace-instructions.md`
+    carry uncommitted edits.
+  - dev-observatory owns `switchboard_panel.py` (parent decision D3).
+
+#### Scope
+
+**In:**
+- The committed registry and its `inspect --roles` view (R1).
+- Claude and Codex role-file generation under an ownership ledger (R2).
+- Requested-versus-observed receipts (R3).
+- Parking local offload (R4).
+- Live dispatch probes (R5, R8).
+- Joining measure-twice claim status into the table (R6).
+- Migrating the coding-root workflow (R7).
+- Retiring the coding-root pin owners (R9).
+- The end-to-end swap drill (R10).
+- Handoff blocks R-SM1 to R-SM4 and R-MT1.
+
+**Out:**
+- Copilot as a registry host; the operator deprecated it on 2026-11-08. Retiring skill-mesh's
+  GPT/Copilot transport is a separate skill-mesh decision. `skill-mesh/config/model-tier-map.json`
+  stays skill-mesh-owned GPT session resolution and is untouched here.
+- Work-mode preferences (seed requirement 8). They are deferred to
+  [seed_work_mode_preferences.md](../../../docs/seeds/seed_work_mode_preferences.md).
+- Benchmarking: measure-twice Steps 58 and 66-70, lane-6 steps a, d, e, f and h, and the first suite,
+  `reviewer-independent-v0`.
+- Session-tier choice. This covers the 13 `Model: Claude model selected by .claude/references/model-tiering.md`
+  adapter lines and the session model and effort in `settings.json`. They choose the window's model, not
+  a helper's.
+- The dev-observatory panel's copied validator and defaults (`switchboard_panel.py:61-70,112-160,217-240`).
+  They belong to the dev-observatory plan (parent D3), and an issue is filed at sync.
+- Automatic swaps, runtime override verbs, re-enabling offload (#237 owns certification; #569 and the
+  skill-mesh judge-call working-directory prose travel with it, see "Follow-ups outside this plan"), and the items
+  the seed queues after this plan.
+
+#### Impact analysis
+
+Search for shared-interface consumers:
+- Roots: `switchboard/`, `measure-twice/`, `skill-mesh/{skills,_shared,tests}`, `dev-observatory/{src,tests}`
+  and `.claude/skills/{tier-offload,_shared}`, excluding `.venv`.
+- Pattern: `resolve_roles|RolePin|ALLOWED_ROLES|CLAIM_STATUSES|ROLE_PIN_FIELDS|INSPECT_SCHEMA_VERSION|ALLOWED_TOP_LEVEL_FIELDS|"roles"|"claims"`.
+- Not searched: docs, and installed skill copies other than tier-offload.
+
+| File or interface | Change | Reason | Verified evidence |
+|---|---|---|---|
+| `SwitchboardConfig.roles/claims`, `ALLOWED_ROLES`, `ROLE_PIN_FIELDS`, `ALLOWED_ROLE_PROVIDERS`, `RolePin`, `resolve_roles` (`config.py`) | move to `switchboard/switchboard/registry.py`; config fields removed | one owner; the registry is committed (R-P1) | consumers: `cli.py` (19 hits), `tests/test_config.py` (31), `tests/test_cli.py` (20), `tests/test_loader.py:53-58` (exact field set). All are in-scope updates |
+| `ALLOWED_TOP_LEVEL_FIELDS` | loses `roles` and `claims` | derived from the dataclass fields | `.claude/skills/tier-offload/test_sample_config_loads.py:89,160` asserts only the derivation and `effort`: OK. `tests/test_config.py:289` asserts the removed fields: update |
+| `CLAIM_STATUSES` | moves with the registry; values unchanged | it still mirrors measure-twice | measure-twice reads no switchboard roles or claims; R-MT1 adds a parity test |
+| `inspect --roles --json` and the roles section of `inspect --json` | schema 3: per-host `model`/`effort`, `claim_id`, then `claim_status` (R6) and `observed` (R3) | new row shape | `observatory-contract.json:105-125` (producer fixture): update. dev-observatory reads only path facts from the contract (`dev-observatory/tests/test_switchboard_panel.py:47-52`): OK |
+| `_SAFE_NAME_RE` in `switchboard/switchboard/config.py` | none; it stays | measure-twice imports it (`ledger.py:28`) | do not move it |
+| `DEFAULT_*` constants and the `less_token_mode` / `enabled_call_sites` fields in `config.py` | none; names and fields stay | the uncommitted dev-observatory panel fix (usage-review Q1 leftover) AST-parses them as a drift guard | `dev-observatory/tests/test_switchboard_panel.py` (working tree, 46/46 per the Q1 handoff): OK if R1 keeps them. Its `start_offload` keep-list and fixtures still treat `roles` and `claims` as switchboard config keys, which R1 removes: update through R-D17's issue |
+| `~/.claude/agents/role-*.md`, `~/.codex/agents/role-*.toml` | new generated surface | host-native role definitions | both directories are absent today |
+| `~/.switchboard/generated.json`, `~/.switchboard/receipts.jsonl` | new private state | ownership ledger; observations | outside every repository |
+| `.claude/workflows/deep-research-pinned.js:112-348` | role `agentType` instead of `model`/`effort` | first coding-root consumer | the script has no tests |
+| `.claude/references/model-tiering.md`, `.claude/workspace-instructions.md:12,60,69`, `.claude/references/model-tier-map.json`, `.claude/references/model-mapping.md` | rationale only, corrected, or deleted after a reader check | one pin owner | `skill-mesh/config/skill-manifest.json:98,103` names the dev copies as transform sources, so check readers before deleting |
+| `enabled_call_sites` in `~/.switchboard/config.json` | all false (operator) | park offload | done 2026-11-08 (R4): all eight sites `false`; the six that were `true` are kept in `config.json.bak-2026-11-park` |
+
+#### New components
+
+- `switchboard/registry/models.json`: the committed table (schema v1).
+- `switchboard/switchboard/registry.py`: load, validate and resolve the table, and join claim status.
+- `switchboard/switchboard/generate.py`: the host emitters and ownership ledger behind `apply`.
+- `switchboard/switchboard/observe.py`: receipts built from native transcripts.
+- Handoff deliverables:
+  - skill-mesh: `config/spawn-sites.json`, the shipped `_shared/spawn-sites.json`,
+    `tests/package-integrity/test_spawn_sites.py` and `spawn_baseline.json`;
+  - measure-twice: `mt claims export` and `data/exports/claims.json`.
+
+#### Registry shape and initial rows
+
+```json
+{
+  "schema_version": 1,
+  "roles": {
+    "reviewer": {
+      "description": "Independent reviewer arm launched by a skill",
+      "read_only": false,
+      "claude": {"model": "claude-sonnet-5-5", "effort": "inherit"},
+      "codex": {"model": "inherit", "effort": "inherit"},
+      "claim_id": "registry-reviewer-initial"
+    }
+  }
+}
+```
+
+Validation rules:
+- Role names match `^[a-z][a-z0-9-]*$`.
+- The hosts are exactly `claude` and `codex`.
+- No row may name a Fable model: any `claude-fable-*` value is invalid (R-P7). The operator starts Fable
+  by hand; nothing in the registry dispatches it.
+- `model` is an exact ID or `inherit`. Bare aliases (`haiku|sonnet|opus|fable`) and any value without a
+  digit are rejected.
+- `effort` is `inherit` or one of that host's own levels (R-P6). Claude rows use `ALLOWED_EFFORT_TIERS`
+  (`switchboard/switchboard/config.py`). Codex rows use Codex's `model_reasoning_effort` values, looked up
+  from the Codex docs and CLI when R1 is built and kept as a separate constant in `registry.py`. A Claude
+  level that Codex lacks is invalid on a Codex row.
+- `inherit` writes no key, so the host resolves exactly as it does today.
+- `read_only` renders Explore-equivalent restrictions. On Claude that is
+  `disallowedTools: Agent, Edit, Write, NotebookEdit` plus `omitClaudeMd: true`. On Codex it is stated in
+  `developer_instructions`, because Codex agents cannot override permissions.
+
+Initial rows are **behavior-preserving** (R-D5). Each pins the exact ID that today's alias resolves to,
+with `effort: inherit`, except where a site already writes an effort. The one deliberate exception is
+`diagnosis`, which moves from Fable to Opus by operator decision R-P7.
+
+| Role | read_only | Today's sites (examples) | Claude initial | Codex initial |
+|---|---|---|---|---|
+| builder | no | build-step developer; user-learn implementation arms (Codex) | inherit | `gpt-5.6-sol`, medium |
+| reviewer | no | build-step reviewer arms and re-dispatch; review-deep non-style lenses; review-gauntlet lenses; user-uat `--deep` assessor | `claude-sonnet-5-5` | inherit |
+| reviewer-style | no | review-deep Style lens | `claude-haiku-5-5` | inherit |
+| research-verifier | no | deep-research verify arms | `claude-sonnet-5-5` | inherit (Claude-only script) |
+| eval-grader | no | skill-eval-setup grader | `claude-sonnet-5-5` | inherit |
+| goblin-judge | no | goblin-suggest judges | `claude-sonnet-5-5` | inherit |
+| motion-judge | no | judge-motion | `claude-sonnet-5-5` | inherit |
+| diagnosis | no | build-step phone-a-friend (dispatches `model: fable` today) | `claude-opus-5-5` (moved off Fable by R-P7) | inherit |
+| author | no | user-brainstorm; user-learn non-implementation arms; skill-iterate brainstormer; skill-eval-setup bad examples | `claude-sonnet-5-5` | inherit |
+| scanner | yes | research-prospect, test-prune and user-debug repro (Explore today); context-slim, tier-escalate and tier-offload classifiers | `claude-sonnet-5-5` | inherit |
+| researcher | no | deep-research search arms | `claude-sonnet-5-5` | inherit (Claude-only script) |
+| extractor | no | deep-research fetch arms | `claude-sonnet-5-5`, low | inherit (Claude-only script) |
+| vision-judge | no | judge-ui | `claude-opus-5-5` | `gpt-5.6-sol` |
+| final-judge | no | user-uat visual final judge; lesson-harvest strong reviewer | `claude-opus-5-5` | inherit |
+
+These sites are declared explicit `inherit`, with no role:
+- `score_skill.workflow.js` (5) and `m2_launcher.workflow.js` (2);
+- the deep-research scope and synthesize phases;
+- the goblin-suggest generator and the skill-eval-setup producer;
+- the citation-review and citation-sweep votes, which deliberately use the session's exact model.
+
+The Claude IDs above are the current documented IDs. R1 confirms what each alias resolves to from
+existing transcript metadata and records that evidence. A site whose current model and effort match no
+row gets its own role or stays `inherit`. Migration never makes an unmeasured behavior change.
+
+#### Design decisions
+
+| ID | Choice | Decision | Provenance | Rationale | Alternatives / unresolved |
+|---|---|---|---|---|---|
+| R-P1 | Registry home | Committed `switchboard/registry/models.json`, resolved `--registry`, then `SWITCHBOARD_REGISTRY`, then the repo default. Absent and invalid are reported states | operator 2026-11-08 | git history is the swap audit trail; one readable table; the panel cannot wipe it | home `config.json` (rejected) |
+| R-P2 | Cross-repo placement | Track R is executable here; skill-mesh and measure-twice work ships as handoff blocks their repos adopt | operator 2026-11-08 | nested repos cannot be built from a coding-root worktree; both have concurrent owners | all steps here, repo-tagged (rejected) |
+| R-P3 | Copilot | Not a registry host | operator 2026-11-08 ("deprecated") | no per-agent effort; GPT adapters halt at Step 0 for spawning skills | generate Copilot agents and fold the tier map (rejected) |
+| R-P4 | Work modes | Deferred to a seed | operator 2026-11-08 | no consumer exists that avoids a runtime call; avoids a table nothing reads (the B3 lesson) | table only; full consumer |
+| R-P5 | Grader split | The four sites once grouped as `grader` each get their own role: `research-verifier`, `eval-grader`, `goblin-judge` and `motion-judge` | operator 2026-11-08 (plan-review answer) | a claim measured for one site must not show as evidence for the others; each can be swapped alone | one shared `grader` row (rejected) |
+| R-P6 | Effort check per host | Claude rows are checked against Claude's effort levels and Codex rows against Codex's own levels | operator 2026-11-08 (plan-review answer) | the two hosts accept different values; one shared list would let a value through that Codex cannot use | one list for both hosts (rejected) |
+| R-P7 | Fable is never pinned | No registry row may name a `claude-fable-*` model, and the validator rejects one. `diagnosis` (build-step phone-a-friend) moves from Fable to `claude-opus-5-5`. Coding-root docs and the deep-research-pinned header keep no Fable ID and no automatic Fable dispatch. The operator starts Fable by hand | operator 2026-11-08 (redline feedback) | automatic Fable calls from research and other tasks have repeatedly blown the budget | keep the phone-a-friend Fable dispatch (rejected) |
+| R-D1 | Ownership split | Switchboard owns role definitions (model, effort, description, read_only). skill-mesh owns site-to-role mapping in `config/spawn-sites.json`. `apply --catalog` checks coverage | agent default | each fact has one owner; skill-mesh stays hermetic | skill-mesh-owned vocabulary vendored into switchboard (a duplicate constant) |
+| R-D2 | Old config fields | `roles` and `claims` leave `SwitchboardConfig`. A config still carrying them fails as an unknown key, while the judge path still defers | agent default | no deployed config has them; one owner | keep them accepted and ignored (two owners) |
+| R-D3 | IDs | Exact IDs or `inherit`; no alias exceptions | agent default (seed OQ9) | an alias moves silently, which is an unbenchmarked swap | a per-row `alias_ok` (add later if a role wants one) |
+| R-D4 | Vocabulary | The 14 roles above (11 derived, with `grader` split four ways by R-P5). `delta_reviewer`, `packager`, `verifier_contract`, `verifier_host`, `driver` and `lens` are dropped because no spawn site uses them. kebab-case matches measure-twice tags (`reviewer-style`) | agent default (seed OQ1) | derived from the 42-site inventory | keep the 10 playbook roles |
+| R-D5 | Initial values | Behavior-preserving exact IDs with `effort: inherit`; any change is a later claim-cited swap. Exception: `diagnosis` moves off Fable to Opus (R-P7) | agent default (seed OQ6); exception by operator 2026-11-08 | first effort defaults get measured before and after, not guessed | re-tier during migration |
+| R-D6 | Generation | `apply` writes directly, dry-run by default with `--write` to act. It keeps its own ledger with a per-file sha256, refuses foreign files, and deletes only with `--prune` plus a ledger entry and hash match. An invalid registry means no writes, one advisory line and exit 2 | agent default (seed OQ2) | the installer owns only `.claude/skills`; a swap must not need a reinstall; Step-65 rule | emit files for the skill-mesh installer (needs a reinstall) |
+| R-D7 | Names | `role-<role>` on both hosts | agent default | avoids clashing with built-in and plugin agent names | bare role names |
+| R-D8 | Codex mechanism | Custom-agent TOML in `~/.codex/agents/` | agent default (seed OQ4) | per helper, and the file is authoritative; profiles are session-level | named profiles |
+| R-D9 | Claude mechanism | User-level `~/.claude/agents`, dispatched by Agent `subagent_type` and Workflow `agentType`. R5 proves each path; a failed path is HELD and the plan returns to plan-redline | agent default (seed OQ5) | the docs verify the precedence but only imply that workflows honor it | pins passed through workflow `args` (fallback, needs redline) |
+| R-D10 | Evidence join | Rows cite a `claim_id`, and status comes from measure-twice's committed export. Switchboard keeps `CLAIM_STATUSES`, with a parity test in measure-twice. A missing export shows `unknown` | agent default | no import cycle; measure-twice owns its schema | parse `claims.jsonl` directly (couples to internals) |
+| R-D11 | Approval | The operator's commit of a row change is the yes. The operator runs `apply --write`; nothing swaps automatically | agent default (seed requirement 5) | a swap changes every skill that uses the role | auto-swap on MEASURED |
+| R-D12 | Receipts | Private `~/.switchboard/receipts.jsonl`, metadata fields only; effort is `UNKNOWN` when the host does not record it | agent default | Toolkit U04 wants requested and applied values; transcripts are private | none |
+| R-D13 | Missing role at dispatch | Skill text falls back to the default agent and reports `role_missing`. It is advisory and never blocks | agent default (seed requirement 9) | a release must never break helper launches | halt with `required_tool_missing` |
+| R-D14 | Offload park | All six enabled sites are set false. The seed said five, but discovery found six and none is certified. #237 re-enables `review-deep-style` if it certifies | agent default (reversible) | the endpoint is offline and every call already defers | keep `context-slim-classifier` on |
+| R-D15 | Pin ledger | `v3/w3-pin-ledger` is not merged. The registry (requested), the generated ledger (resolved) and receipts (observed) replace it, and its 67-row inventory is R-SM1's cross-check. Deleting the branch is the operator's call after R-SM4 | agent default (seed requirement 4) | its gate breaks on every edit this migration makes | merge it as the observed record |
+| R-D16 | Lane-6 steps | c becomes R1; g becomes R3, R5 and R8; i becomes R-SM2 to R-SM4; b is covered by R-D15. a, d, e, f and h stay in measure-twice | agent default (seed OQ7) | this track consumes evidence and does not produce it | none |
+| R-D17 | Observatory panel | The dev-observatory plan replaces the panel's copied validator and defaults with the R1 contract; an issue is filed at sync. That issue also carries the usage review's uncommitted panel fix (`coder-30b` mirror, AST drift guard, `start_offload` keeping owned keys), with `roles` and `claims` dropped from its keep-list once R1 lands | agent default (seed OQ8; parent D3) | the panel is owned there | edit the panel here |
+
+#### Steps
+
+| Phase | Steps | When it can start |
+|---|---|---|
+| R-A | R1, R2, R3, then operator steps R4 and R5 | now (switchboard only) |
+| R-B | R6; R7 | R6 after R-MT1 lands; R7 after R5 |
+| R-C | operator step R8 | after R7 and R-SM2 |
+| R-D | R9, then operator step R10 | after R-SM4 |
+
+Toolkit program unit U04 governs when R-B onward is selected. This plan authorizes no skill-mesh or
+measure-twice build or release.
+
+### Step R1: Committed role registry read by inspect --roles
+- **Problem:** Replace the config-resident, all-null roles and claims table with a committed, validated
+  registry file that `inspect --roles` renders as the one table of role to per-host model and effort.
+- **Type:** code
+- **Issue:** #571
+- **Flags:** --reviewers deep --isolation worktree
+- **Files:** `switchboard/registry/models.json` (new), `switchboard/switchboard/registry.py` (new),
+  `switchboard/switchboard/config.py`, `switchboard/switchboard/cli.py`, `switchboard/tests/test_registry.py`
+  (new), `switchboard/tests/test_config.py`, `switchboard/tests/test_cli.py`, `switchboard/tests/test_loader.py`,
+  `switchboard/docs/observatory-contract.json`, `switchboard/docs/observatory-contract.md`,
+  `switchboard/README.md`, `switchboard/CLAUDE.md`
+- **Produces:**
+  - Registry schema v1 and its loader. Resolution order is `--registry`, `SWITCHBOARD_REGISTRY`, then the
+    repo default; absent and invalid are reported states, never crashes.
+  - The 14 initial rows from "Registry shape and initial rows". Each records how its alias resolution was
+    confirmed (transcript `message.model` metadata only).
+  - `INSPECT_SCHEMA_VERSION = 3`.
+  - `roles` and `claims` removed from `SwitchboardConfig`. `_SAFE_NAME_RE` stays in `config.py`.
+  - The contract fixture updated in the same change.
+- **Done when:** Run from `switchboard/`, `uv run python -m switchboard inspect --roles --json` prints
+  `schema_version` 3 with one row per registry role carrying claude/codex `model` and `effort` and
+  `claim_id`. A registry containing an alias (`sonnet`), an unknown host, an unknown effort, a Codex row
+  with a Claude-only effort, or any `claude-fable-*` model is reported as `registry_state: invalid` with
+  exit 0. The `diagnosis` row reads `claude-opus-5-5`. A config file still carrying `roles` fails
+  `python -m switchboard config` naming the key, while `judge` with that config still defers with exit 0.
+  The contract drift test fails on any field change. `dependencies = []` is unchanged. The cross-package
+  checks in Testing strategy pass.
+- **Depends on:** none
+
+### Step R2: apply generates Claude and Codex role definitions under an ownership ledger
+- **Problem:** Turn the registry into host-native role files that a dispatch by name picks up, without
+  ever overwriting or deleting a file switchboard cannot prove it wrote.
+- **Type:** code
+- **Issue:** #572
+- **Flags:** --reviewers deep --isolation worktree
+- **Files:** `switchboard/switchboard/generate.py` (new), `switchboard/switchboard/cli.py`,
+  `switchboard/tests/test_generate.py` (new), `switchboard/README.md`, `switchboard/CLAUDE.md`
+- **Produces:** `python -m switchboard apply [--write] [--prune] [--home <dir>] [--registry <path>]
+  [--catalog <spawn-sites.json>]`.
+  - **Files written:** `<home>/.claude/agents/role-<role>.md` (frontmatter `name`, `description`, `model`,
+    `effort`, plus the read-only keys) and `<home>/.codex/agents/role-<role>.toml` (`name`,
+    `description`, `developer_instructions`, `model`, `model_reasoning_effort`). Each carries a
+    provenance marker. `inherit` omits the key.
+  - **Bare run:** prints a per-file plan (create, update, unchanged, refuse) and writes nothing.
+  - **`--write`:** writes atomically (temp file then rename) and records path and sha256 in
+    `<home>/.switchboard/generated.json`. It updates a file only when that file's ledger entry and
+    current hash match. A foreign or hand-edited file is refused and left untouched.
+  - **`--prune`:** removes only files with a ledger entry and a hash match whose role left the registry.
+  - **Missing or invalid registry:** no writes, the last-good files are kept, one advisory line, exit 2.
+  - **Advisory lines:** when `CLAUDE_CODE_SUBAGENT_MODEL_FORCE`, `CLAUDE_CODE_SUBAGENT_MODEL` or
+    `CLAUDE_CODE_EFFORT_LEVEL` is set; when a same-named project agent exists under `.claude/agents`;
+    and, with `--catalog`, for each catalog role that has no row.
+- **Done when:** Tests drive `python -m switchboard apply` through `main()` over a temporary home and
+  prove six things:
+  1. A bare run writes nothing.
+  2. `--write` creates both hosts' files, and their frontmatter and TOML parse back to the registry values.
+  3. A hand-edited or foreign file at a target path is never modified or deleted.
+  4. An invalid registry leaves every previously generated file byte-identical.
+  5. A second `--write` is a no-op.
+  6. `--prune` removes only ledger-owned, hash-matching files.
+- **Depends on:** R1
+
+### Step R3: observe records requested-versus-observed receipts
+- **Problem:** Record from native host evidence which model a role dispatch actually ran, plus its effort
+  when the host records one, and show it next to the requested value in `inspect --roles`.
+- **Type:** code
+- **Issue:** #573
+- **Flags:** --reviewers deep --isolation worktree
+- **Files:** `switchboard/switchboard/observe.py` (new), `switchboard/switchboard/cli.py`,
+  `switchboard/tests/test_observe.py` (new), `switchboard/tests/fixtures/observe/` (new, synthetic),
+  `switchboard/docs/observatory-contract.json`, `switchboard/README.md`
+- **Produces:**
+  - `python -m switchboard observe --host claude|codex (--transcript <path> | --latest [--project-dir <dir>])`.
+    It reads only model, effort and agent-type metadata, never message content.
+  - Each run appends a receipt to `~/.switchboard/receipts.jsonl`: `{ts, host, role, requested_model,
+    requested_effort, observed_model, observed_effort|UNKNOWN, source_locator, registry_sha256}`.
+  - `inspect --roles` shows each host's latest `observed` value, or `unknown` when there is none.
+- **Done when:** Field names are taken from one real transcript per host, captured at build time and
+  recorded in the module docstring; fixture content is synthetic. The fixtures round-trip through
+  `python -m switchboard observe` into a receipt and into `inspect --roles --json`. A transcript that
+  records no agent type yields an `unattributed` receipt, not a guess. A requested-versus-observed
+  mismatch is displayed.
+- **Depends on:** R1
+
+### Step R4: Park local offload
+- **Problem:** Turn off every enabled offload site that has no certification, so that no local judge runs
+  until #237 certifies one.
+- **Type:** operator
+- **Issue:** #574
+- **Files:** `~/.switchboard/config.json` (operator-owned, outside every repository)
+- **Produces:** operator evidence only
+- **Done when:** `uv run python -m switchboard config` shows every `enabled_call_sites` value `false`, and
+  `uv run python -m switchboard inspect --json` reports `state: inactive`. The `effort` map is unchanged
+  and a backup exists.
+- **Depends on:** none
+- **Status:** DONE (2026-11-08; parked by the usage-review Q1 window on the operator's instruction. The live config shows all eight sites `false`,
+  `config.json.bak-2026-11-park` holds the six that were `true`, and the `effort` map and other keys are
+  unchanged; checked by plan-review.)
+
+Run in: any PowerShell window @ `dev\switchboard`. Back up the config, then set each
+`enabled_call_sites` value to `false` in the editor. Were `true` before the park: skill-iterate-grader,
+skill-evolve-grader, review-gauntlet-style, review-deep-style, goblin-suggest-judge and
+context-slim-classifier.
+
+```powershell
+Copy-Item "$env:USERPROFILE\.switchboard\config.json" "$env:USERPROFILE\.switchboard\config.json.bak-2026-11-park"
+notepad "$env:USERPROFILE\.switchboard\config.json"
+```
+
+Observe that no value is `true`:
+
+```powershell
+cd <coding-root>\switchboard
+uv run python -m switchboard config
+```
+
+### Step R5: Live role-dispatch probe
+- **Problem:** Prove on the real hosts that a dispatch by role name runs the generated model and effort,
+  on every dispatch path the migration will use, before any skill depends on it.
+- **Type:** operator
+- **Issue:** #575
+- **Files:** none (generated files and receipts live in the operator's home)
+- **Produces:** operator evidence only: receipts plus `inspect --roles` output
+- **Done when:** `~/.switchboard/receipts.jsonl` shows `observed_model == requested_model` on four paths:
+  1. Claude Agent tool `subagent_type: role-extractor` in the VS Code CLI.
+  2. Workflow `agent({agentType: 'role-extractor'})`.
+  3. `claude -p` on the updated PATH `claude.exe`.
+  4. A Codex spawn of `role-builder`.
+
+  Observed effort is recorded, or `UNKNOWN` with the reason. A failing path is recorded, its migration is
+  HELD, and the plan returns to plan-redline for that path (R-D9).
+- **Depends on:** R2, R3
+
+Run in: a fresh VS Code Claude Code window @ `dev` and a PowerShell window @ `dev\switchboard`. First
+update the PATH CLI, and confirm the version is at least 2.1.292 (it should match VS Code's 2.1.319):
+
+```powershell
+claude update
+claude --version
+```
+
+Preview the generation plan. Expect `create` for every role file and no `refuse`:
+
+```powershell
+cd <coding-root>\switchboard
+uv run python -m switchboard apply
+```
+
+```powershell
+uv run python -m switchboard apply --write
+```
+
+**Path 1.** In the VS Code window, send: "Use the Agent tool with subagent_type role-extractor and the
+prompt 'Reply with exactly PONG'. Then reply DONE." Then record the receipt:
+
+```powershell
+uv run python -m switchboard observe --host claude --latest
+```
+
+**Path 2.** In the same window, send: "Use a workflow with one agent() call using agentType role-extractor
+that replies PONG." Then record the receipt:
+
+```powershell
+uv run python -m switchboard observe --host claude --latest
+```
+
+**Path 3.** Run the same dispatch headless, and expect DONE:
+
+```powershell
+claude -p --model claude-opus-5-5 "Use the Agent tool with subagent_type role-extractor and the prompt 'Reply with exactly PONG'. Then reply DONE."
+```
+
+```powershell
+uv run python -m switchboard observe --host claude --latest
+```
+
+**Path 4.** Run the Codex dispatch, and expect DONE:
+
+```powershell
+codex exec "Spawn the role-builder agent with the task 'Reply with exactly PONG', then reply DONE."
+```
+
+```powershell
+uv run python -m switchboard observe --host codex --latest
+uv run python -m switchboard inspect --roles
+```
+
+<!-- autofix-applied: 2026-11-08 -->
+### Step R6: Join measure-twice claim status into the roles table
+- **Problem:** Show each row's evidence status from measure-twice's claims export, so that ASSERTED,
+  PARTIAL, MEASURED and STALE are visible wherever the table renders, without switchboard importing
+  measure-twice.
+- **Type:** code
+- **Issue:** #576
+- **Flags:** --reviewers deep --isolation worktree
+- **Files:** `switchboard/switchboard/registry.py`, `switchboard/switchboard/cli.py`,
+  `switchboard/tests/test_registry.py`, `switchboard/tests/test_cli.py`,
+  `switchboard/docs/observatory-contract.json`, `switchboard/README.md`
+- **Produces:**
+  - The export path resolves `--claims <path>`, then `SWITCHBOARD_CLAIMS`, then
+    `measure-twice/data/exports/claims.json` relative to the workspace.
+  - `claim_status` is joined per row.
+  - With no export, rows show `unknown` and one advisory line is printed.
+  - A `claim_id` missing from a present export is flagged `claim_missing`.
+  - The human view marks ASSERTED rows visibly.
+- **Done when:** Against the committed measure-twice export, `python -m switchboard inspect --roles --json`
+  shows a status for every cited claim. It shows `unknown` when the export is absent and `claim_missing`
+  for a fabricated id. `CLAIM_STATUSES` is unchanged; R-MT1's parity test guards it.
+- **Depends on:** R1, R-MT1 (measure-twice, external)
+
+<!-- autofix-applied: 2026-11-08 -->
+### Step R7: Migrate deep-research-pinned to role dispatch
+- **Problem:** Make the coding-root deep-research-pinned workflow dispatch its arms by role instead of
+  naming `sonnet`, while keeping its measured behavior.
+- **Type:** code
+- **Issue:** #577
+- **Flags:** --reviewers deep --isolation worktree
+- **Files:** `.claude/workflows/deep-research-pinned.js` (header `:12-18`, arms `:188`, `:219-224`,
+  `:270`), `switchboard/registry/models.json` (researcher, extractor and research-verifier rows cite
+  `deep-research-sonnet-arms-a3`), `.claude/references/model-tiering.md` (lines 69-73)
+- **Produces:**
+  - Search arms use `agentType: 'role-researcher'`, fetch arms `role-extractor`, and verify arms
+    `role-research-verifier`. None passes `model` or `effort`.
+  - The scope and synthesize phases still inherit the session model.
+  - The header comment no longer tells the operator to switch the session to Fable before invoking
+    (`:15`, R-P7).
+- **Done when:** The script contains no `model:` or `effort:` agent options, and `grep -n "claude-fable"`
+  over it returns nothing. The three rows equal the script's previous values: the Sonnet ID on all three,
+  and `low` effort on extractor only.
+  `python -m switchboard apply` lists the three role files as unchanged after R5's write.
+- **Depends on:** R5
+
+### Step R8: First real dispatches through migrated callers
+- **Problem:** Observe requested-versus-applied values on real work: one `/build-step` run and one
+  `/deep-research-pinned` run (Toolkit U04's "one rebuild dispatch first").
+- **Type:** operator
+- **Issue:** #578
+- **Files:** none (receipts live in the operator's home)
+- **Produces:** operator evidence only
+- **Done when:** Receipts show `observed == requested` for the build-step roles that ran (`reviewer`
+  always, `builder` per host, and `diagnosis` only if it fired) and for the deep-research `researcher`,
+  `extractor` and `research-verifier`. There is no `role_missing` advisory, and `inspect --roles` displays the values.
+- **Depends on:** R3, R7, R-SM2 (skill-mesh, external)
+
+Run in: the operator's normal build window @ the project being built, plus a PowerShell window @
+`dev\switchboard`. After each run, record its receipt:
+
+```powershell
+uv run python -m switchboard observe --host claude --latest
+uv run python -m switchboard inspect --roles
+```
+
+### Step R9: Retire competing pin owners in coding-root docs
+- **Problem:** Make the registry the only pin owner in coding-root documentation and correct the stale
+  model facts. `model-tiering.md` keeps the rationale and the session-tier default and points to the
+  registry for helper models, and the hand-kept copies are removed once nothing reads them. The usage
+  review assigned this work here (`docs/seeds/seed_usage_review_followups.md`, Q1 "Stale model facts"
+  and "Stale reference copies"; its fix was backed out in `4f4868a8` so this step owns it).
+- **Type:** code
+- **Issue:** #579
+- **Flags:** --reviewers code --isolation worktree
+- **Files:** `.claude/references/model-tiering.md` (`:7`, `:9`, `:17`, `:30-55`),
+  `.claude/workspace-instructions.md` (`:12`, `:60`, `:69`), `.claude/references/model-tier-map.json`
+  (delete), `.claude/references/model-mapping.md` (delete), `switchboard/CLAUDE.md`,
+  `switchboard/README.md`, `docs/seeds/seed_model_registry.md` (status note)
+- **Produces:**
+  - Each fact has one owner.
+  - The session-default facts say Opus 5.5 and name the per-model `modelSettings` block as the live
+    effort pin (top-level `effortLevel` does not apply to 5.5 models).
+  - Every `claude-fable-*` ID and every automatic Fable dispatch leaves both files (R-P7). The
+    phone-a-friend section (`model-tiering.md:30-55`, today "the ONE sanctioned autonomous Fable
+    dispatch") points at the registry's `diagnosis` role instead. Fable is described only as a model the
+    operator starts by hand, with no pinned ID.
+  - `workspace-instructions.md:12` shrinks to a one-line pointer to `model-tiering.md`.
+  - The `model-tiering.md` heading "Default: Opus 4.8 + Sonnet fan-out" is renamed. Its only cited
+    reader, `skill-mesh/skills/research-prospect/core.md:65`, drops that citation in R-SM4, which lands
+    before this step.
+  - The switchboard charter and the scrapable `## Commands` are updated.
+  - The hand-kept copies are deleted only after a recorded reader grep shows no build-time or runtime
+    reader. That grep covers `skill-mesh/config/skill-manifest.json:98,103`, `runtime/skill-router.ps1`
+    and the tests. If a reader remains, the file stays with a pointer stub and a skill-mesh issue is filed.
+- **Done when:**
+  - `grep -niE "opus 4\.8|claude-fable|model: *fable"` over `.claude/workspace-instructions.md` and
+    `.claude/references/model-tiering.md` returns nothing.
+  - `model-tiering.md` names no helper (sub-agent) model; the session model line stays. Helper pins
+    point to `switchboard/registry/models.json`.
+  - The reader table (call site, verdict) is attached to the change, including the research-prospect
+    heading citation.
+  - `uv run --project dev-observatory observatory status` still lists switchboard's verbs.
+  - The other session's uncommitted edits to both instruction files landed first, and the operator has
+    settled which text `workspace-instructions.md` lines 12 and 69 carry (HEAD and the working tree
+    differ; see `.claude/task-state/usage-review-q1-handoff-2026-11-08.md` §5.1).
+- **Depends on:** R2, R-SM4 (skill-mesh, external)
+
+### Step R10: Swap drill
+- **Problem:** Run the target journey once. Change one registry row, apply it, and see the next real
+  dispatch use the new value, with no skill-mesh edit or reinstall.
+- **Type:** operator
+- **Issue:** #580
+- **Files:** `switchboard/registry/models.json` (operator edit)
+- **Produces:** operator evidence only
+- **Done when:**
+  - One committed row change, chosen by the operator, cites its claim. Recommended: a reversible effort
+    change on `scanner`, or a same-model ID refresh.
+  - The bare `apply` plan shows exactly one changed file per host.
+  - After `apply --write`, the next real skill dispatch under that role yields a receipt with the new
+    observed value.
+  - `git -C skill-mesh status --porcelain` and the hash of `~/.skill-mesh-install.json` are unchanged
+    across the swap.
+  - The keep-or-revert decision is recorded.
+- **Depends on:** R8, R9
+
+Run in: a PowerShell window @ `dev`. Record the baseline:
+
+```powershell
+Get-FileHash "$env:USERPROFILE\.skill-mesh-install.json"
+git -C <coding-root>\skill-mesh status --porcelain
+```
+
+Edit and commit the one row (path-scoped `git add`). Then preview, and expect one changed file per host:
+
+```powershell
+cd <coding-root>\switchboard
+uv run python -m switchboard apply
+```
+
+```powershell
+uv run python -m switchboard apply --write
+```
+
+Run one real skill that dispatches the role, then confirm. Expect the new observed value and an unchanged
+hash and status:
+
+```powershell
+uv run python -m switchboard observe --host claude --latest
+uv run python -m switchboard inspect --roles
+Get-FileHash "$env:USERPROFILE\.skill-mesh-install.json"
+git -C <coding-root>\skill-mesh status --porcelain
+```
+
+#### Handoff blocks
+
+R-SM1 to R-SM4 (skill-mesh) and R-MT1 (measure-twice) are written in the step contract in
+[model-registry-handoff-blocks.md](model-registry-handoff-blocks.md). They are not steps of this plan.
+Each target repository adopts them into its own master plan once three things hold: its concurrent
+work has landed, the Toolkit program has selected the work, and, for skill-mesh, R2 is built and R5
+has passed. Read that file before starting R6, R8 or R9.
+
+| Block | Repo | Delivers | Depends on |
+|---|---|---|---|
+| R-SM1 | skill-mesh | spawn-site gate, `config/spawn-sites.json`, frozen shrink-only baseline, shipped `_shared/spawn-sites.json` | R1 |
+| R-SM2 | skill-mesh | build-step developer, reviewer and diagnosis dispatch by role; `role_missing` fallback; release | R-SM1, R2, R5 |
+| R-SM3 | skill-mesh | judge, lens and grader sites by role or explicit `inherit` | R-SM2 |
+| R-SM4 | skill-mesh | author, scanner and diagnosis sites by role; no model-naming launch remains | R-SM3 |
+| R-MT1 | measure-twice | `mt claims export`, status parity test, initial ASSERTED claims | R1 |
+
+#### Classification of triggered obligations
+
+- **Compatibility and migration.** R1 changes the old shape (config `roles`/`claims`) to the new one
+  (`switchboard/registry/models.json`). No deployed config carries the old keys. Rollout is R1 landing.
+  Backout is reverting R1 and running `apply --prune --write`, which removes only ledger-owned files.
+  R-D13 keeps skills working if role files disappear. Diffs that rewrite assertions in `test_config.py`
+  and `test_cli.py` are reviewed under the audit-wire-shape rule.
+- **Producer-consumer chain.** The chain runs registry, generator, role file, host dispatch, transcript,
+  receipt. R5 is the real-component smoke gate before any skill depends on the chain; unit tests cannot
+  prove a host honors a file.
+- **Autonomous behavior.** Not triggered. `apply` and `observe` are one-shot operator commands; nothing
+  is scheduled or always on.
+- **Deployment seam.** Triggered: the work installs runtime-read model configuration into
+  `~/.claude/agents` and `~/.codex/agents`. R5, R8 and R10 observe the live hosts with native transcript
+  evidence.
+- **Wait or conditional work.** None.
+
+#### Testing strategy
+
+- **switchboard.** Run from `<coding-root>\switchboard`: `uv run pytest -q`, `uv run ruff check .`,
+  `uv run ruff format --check .`, `uv run mypy --strict switchboard` (`switchboard/CLAUDE.md` lines 20-25).
+  `pyproject.toml` declares the single test root `tests/`, so `uv run pytest -q` is the full suite.
+- **Cross-package consumers after R1.**
+  - From `<coding-root>`:
+    `uv run --project switchboard python -m pytest .claude/skills/tier-offload/test_sample_config_loads.py -q`
+    (test header lines 12-15).
+  - From inside `dev-observatory\`: `uv run pytest -q tests/test_switchboard_panel.py`
+    (`dev-observatory/CLAUDE.md` lines 40 and 205).
+- **Production caller.** Every new verb is tested through `python -m switchboard <verb>` (`main()`), not
+  only through module functions. R2 parses its generated files back. R3 goes from fixture to receipt to
+  `inspect`.
+- **measure-twice (R-MT1).** From `measure-twice\`: `uv run pytest -q`, `uv run ruff check .`,
+  `uv run mypy --strict measure_twice` (`measure-twice/CLAUDE.md` lines 22-25).
+- **skill-mesh (R-SM1 to R-SM4).** Iterate with `python -m pytest tests/package-integrity`. The DONE gate
+  is `python -m pytest` at the repo root, about four hours (`skill-mesh/CLAUDE.md` lines 21 and 46). A step
+  checkpoint names the suites it ran.
+- **End to end.** R5 proves the mechanism, R8 the real callers, and R10 the whole journey. The receipts
+  and the `inspect --roles` output are the evidence, never configuration alone (Toolkit contract).
+
+#### Risks and open questions
+
+| Item | Consequence | Mitigation / owner | Blocking |
+|---|---|---|---|
+| A custom role agent replaces the general-purpose subagent system prompt | helper behavior shifts subtly | minimal role prompt; R5 and R8 inspect real outputs; reviewers compare one known build | no |
+| A project-level agent of the same name, or an env override, defeats a pin | the swap silently does nothing | `apply` advisory lines (R2); receipts show the mismatch (R3) | no |
+| Workflow `agentType` ignores frontmatter, or the PATH CLI ignores `effort` | that path keeps the old model or effort | R5 proves each path; a failure is HELD and returns to plan-redline (R-D9) | gates R-SM2 and R7 |
+| A skill release names a role before its file exists | helper launch errors | R-D13 fallback; `apply --catalog` runs before install (R-SM2) | no |
+| The new write surface sits in the operator's home | could clobber user files | ledger plus current-byte hash; foreign files refused; never act on a marker alone (R-D6) | no |
+| The transcript layout for subagent attribution is undocumented | `observe` attributes wrongly | R3 captures real field names at build; `unattributed` instead of guessing | no |
+| Claims export missing or stale | evidence status wrong | `unknown` shown; audit stales cited rows on a swap (R-MT1) | no |
+| Codex builder identity is ambiguous (lane-6 OQ3) | wrong builder model | row uses the operator pin `gpt-5.6-sol` (`.claude/workspace-instructions.md:60`); R5 records the observed value | no |
+| Concurrent owners of skill-mesh, measure-twice and the coding-root instruction files | merge collisions | adoption and R9 preconditions; path-scoped commits | gates R-SM*, R-MT1, R9 |
+| Toolkit program selection (U04) | building out of program order | Phase R-B onward waits for U04 selection | gates R-B onward |
+
+No open question blocks Phase R-A.
+
+#### Follow-ups outside this plan
+
+The usage review (`docs/seeds/seed_usage_review_followups.md`, handoff
+`.claude/task-state/usage-review-q1-handoff-2026-11-08.md`) assigned its Switchboard and model-fact
+items here. Those that change a step are folded into R1 (impact row), R9, R-D17 and R-SM4. The rest
+are not steps of this plan:
+
+| Item | Why it is not a step here | Owner and trigger |
+|---|---|---|
+| Issue #569: the kill rule has no live caller and metrics are in-memory only | offload is parked (R4); the kill rule matters only when a slice is on | #237, before any slice is re-enabled |
+| skill-mesh judge-call working-directory prose (uncommitted Task B in worktree `skill-mesh-q1-followups`: goblin-suggest, review-deep, review-gauntlet, skill-evolve, skill-iterate, context-slim) | it fixes offload judge calls, which are parked | lands with the operator's merge of skill-mesh `7c35e03` (Q1 handoff §5.4) or is dropped; it must be settled before R-SM3 adoption because it edits the same files |
+| Memory `user_model_preference.md` | memory is outside every repository, so a worktree step cannot own it | R-P7 and the Opus 5.5 description were recorded there on 2026-11-08. After R9 lands, point its helper-pin guidance at the registry |
+| build-step's phone-a-friend keeps dispatching `model: fable` until skill-mesh releases R-SM2 | the dispatch lives in skill-mesh source (`skills/build-step/providers/claude.md:14`) | R-SM2 replaces it with `role-diagnosis` (Opus). A sooner stop is a one-line skill-mesh change plus release, which is the operator's call |
+| The `claude-fable-5-1` entry in `~/.claude/settings.json` `modelSettings` | it sets effort for a Fable session the operator starts by hand; it dispatches nothing | session tier, out of scope; remove only if the operator asks |
+| A per-role cache TTL for long-pausing roles (usage review "Decided against": open question for the registry) | no role has measured pause data yet | a later registry field, proposed only with a measure-twice claim |
+| Usage review Q2 afterparty checks for stale model IDs and dev-copy drift | Q2 runs after this plan | Q2 should read the registry and expect the dev copies gone after R9 |
 
 ## Compute target
 
@@ -1253,6 +1979,40 @@ IDs are **append-only and stable** across republishes of the proposal. A reverse
 | D10 | D | Every score is three numbers (agreement / coverage / strict); headline delta uses **strict** | proposed (added by plan-review 2026-07-28) |
 | OQ1 | D | Teacher-label target: start at 500 and grow incrementally, rather than minting 2,000 up front | open — awaiting operator |
 
+### Decision Inventory (model registry track)
+
+IDs are append-only and stable across republishes of
+[the proposal](../../../docs/plan-redline/switchboard-proposal.html). A reversed decision is marked
+`changed <date>`. `P` = operator-picked; `D` = agent-defaulted. Full rationale is in the track's Design
+decisions table.
+
+| ID | P/D | Choice | Status |
+|---|---|---|---|
+| R-P1 | P | Registry is committed `switchboard/registry/models.json` | stands |
+| R-P2 | P | skill-mesh and measure-twice work ships as handoff blocks their repos adopt | stands |
+| R-P3 | P | Copilot is not a registry host | stands |
+| R-P4 | P | Work-mode preferences deferred to their own seed | stands |
+| R-P5 | P | The four former `grader` sites each get their own role | stands |
+| R-P6 | P | Effort is checked against each host's own levels | stands |
+| R-D1 | D | Switchboard owns role definitions; skill-mesh owns the site-to-role map | stands |
+| R-D2 | D | `roles` and `claims` leave `SwitchboardConfig`; a config still carrying them is rejected | stands |
+| R-D3 | D | Exact model IDs or `inherit`; no aliases | stands |
+| R-D4 | D | 14 roles derived from the 42-site inventory | stands |
+| R-P7 | P | No registry row may name a Fable model; `diagnosis` moves to Opus; Fable is started by hand | stands |
+| R-D5 | D | Initial rows preserve today's behavior, except `diagnosis` (R-P7) | changed 2026-11-08 |
+| R-D6 | D | `apply` previews by default, writes with `--write`, keeps a hash ledger, refuses foreign files | stands |
+| R-D7 | D | Files are named `role-<role>` on both hosts | stands |
+| R-D8 | D | Codex uses custom-agent TOML in `~/.codex/agents/` | stands |
+| R-D9 | D | Claude uses user-level `~/.claude/agents` via `subagent_type` and `agentType`; R5 proves each path | stands |
+| R-D10 | D | Claim status comes from measure-twice's committed export | stands |
+| R-D11 | D | The operator's row commit is the approval; nothing swaps automatically | stands |
+| R-D12 | D | Private metadata-only receipts in `~/.switchboard/receipts.jsonl` | stands |
+| R-D13 | D | A missing role file falls back to the default agent with `role_missing` | stands |
+| R-D14 | D | All six enabled offload sites set false (done 2026-11-08, R4) | stands |
+| R-D15 | D | `v3/w3-pin-ledger` is not merged; its inventory cross-checks R-SM1 | stands |
+| R-D16 | D | Lane-6 steps mapped into R1, R3, R5, R8 and R-SM2 to R-SM4 | stands |
+| R-D17 | D | The dev-observatory panel fix, including the usage review's uncommitted panel change, belongs to the dev-observatory plan | stands |
+
 ---
 
 OQ1 teacher label target remains open; the starting 500-label proposal is not silently approved by documentation cleanup.
@@ -1260,6 +2020,27 @@ OQ1 teacher label target remains open; the starting 500-label proposal is not si
 ## Plan history
 
 2026-10-14: semantic consolidation. Umbrella Phase A remains completed history; umbrella B1-B3 are subsumed by concrete Phase B units. Surfaces reuse the same config/bakeoff owners; <friend-project> and tune retain distinct ownership and gates. Historical completed detailed substrate design remains in the existing workspace archive; no old phase is reopened.
+
+2026-11-08: added the model registry track (R1-R10, handoff blocks R-SM1 to R-SM4 and R-MT1) from
+`docs/seeds/seed_model_registry.md` via /plan-feature. Switchboard's charter grows to the model registry;
+local offload is parked, not removed. Operator decisions R-P1 to R-P4 are recorded in the track; no
+existing step or status changed.
+
+2026-11-08 (plan-review): R6 and R7 escalated to `--reviewers deep`. Operator answers folded: `grader`
+split into four roles (R-P5), effort checked per host (R-P6), R9 keeps the session model line, and R4
+recorded DONE.
+
+2026-11-08 (usage-review reconciliation): folded the usage review's items assigned to this plan. R9
+regains the stale-fact grep (the Q1 fix was backed out in `4f4868a8`, so the check can fail again) and
+gains the Opus 5.5, `modelSettings`, `claude-fable-5-1`, one-line-pointer and heading-rename work. R1's
+impact table names the uncommitted dev-observatory panel fix; R-D17 carries it; R-SM4 drops
+research-prospect's heading citation. #569, the skill-mesh judge-call prose, the memory file, a per-role
+cache TTL and Q2's checks are listed under "Follow-ups outside this plan".
+
+2026-11-08 (redline feedback): R-P7, Fable is never pinned. The validator rejects `claude-fable-*`;
+`diagnosis` moves to `claude-opus-5-5`; R7 drops the deep-research header's Fable advice; R9 removes every
+`claude-fable-*` ID and the sanctioned automatic Fable dispatch instead of updating the ID; R-D5 marked
+changed.
 
 
 ### Documentation reconciliation decisions
