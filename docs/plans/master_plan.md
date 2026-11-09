@@ -1481,10 +1481,19 @@ measure-twice build or release.
 
 ### Step R2: apply generates Claude and Codex role definitions under an ownership ledger
 - **Problem:** Turn the registry into host-native role files that a dispatch by name picks up, without
-  ever overwriting or deleting a file switchboard cannot prove it wrote.
+  ever overwriting or deleting a file switchboard cannot prove it wrote. Work pre-landed on master at
+  8fb20243 (`generate.py`, `test_generate.py`, `cli.py`, `registry.py`, `README.md`, `CLAUDE.md`; nothing
+  excluded) after the first run's 10 rounds ended BLOCKED on budget: gates green, every review lens PASS
+  except test-quality. Complete from HEAD; do not rebuild or restructure the pre-landed work. Remaining
+  gap: no test changes a file between plan and delete, so removing the `--prune` delete-path re-hash in
+  `generate._apply_one` leaves every test green. Add a `--prune --write` race test, driven through
+  `cli.main`, that hand-edits the retired file when its delete item is applied, and asserts that the
+  edited file survives, the refuse line prints, its ledger entry is kept and the untouched sibling is
+  deleted. Red-check it against a copy with the re-hash removed.
 - **Type:** code
 - **Issue:** #572
-- **Flags:** --reviewers deep --isolation worktree
+- **Flags:** --reviewers deep --isolation worktree --max-iter 12
+- **Status:** BLOCKED (2026-11-08)
 - **Files:** `switchboard/switchboard/generate.py` (new), `switchboard/switchboard/cli.py`,
   `switchboard/tests/test_generate.py` (new), `switchboard/README.md`, `switchboard/CLAUDE.md`
 - **Produces:** `python -m switchboard apply [--write] [--prune] [--home <dir>] [--registry <path>]
