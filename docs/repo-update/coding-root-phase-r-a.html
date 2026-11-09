@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Switchboard Model Registry</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; a wide map band; a typed timeline; a ledger of where things landed. */
+:root {
+  color-scheme: light;
+  --bg: #f4f6f5;
+  --panel: #ffffff;
+  --fg: #1b2321;
+  --muted: #56645f;
+  --line: #d3dbd8;
+  --accent: #a94c17;      /* patch-cable copper */
+  --accent-soft: #f6e6db;
+  --ok: #2f7a4f;
+  --ok-soft: #e1f1e7;
+  --open: #8a6512;
+  --open-soft: #f6edd6;
+  --font-display: "Archivo", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111715; --panel: #18201e; --fg: #e2eae7; --muted: #95a49f; --line: #2a3431;
+    --accent: #e0894d; --accent-soft: #3a2619; --ok: #6cc28e; --ok-soft: #173225;
+    --open: #e2bb5d; --open-soft: #33290f; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111715; --panel: #18201e; --fg: #e2eae7; --muted: #95a49f; --line: #2a3431;
+  --accent: #e0894d; --accent-soft: #3a2619; --ok: #6cc28e; --ok-soft: #173225;
+  --open: #e2bb5d; --open-soft: #33290f; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.6 var(--font-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 64px;
+}
+.wrap { max-width: 980px; margin: 0 auto; display: grid; gap: 48px; }
+.col { max-width: 68ch; }
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.15; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2rem, 4.5vw, 2.9rem); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 1.45rem; font-weight: 700; }
+h3 { font-size: 1.05rem; font-weight: 700; }
+p { margin: 0; }
+.eyebrow { font: 500 0.78rem/1 var(--font-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+.lede { font-size: 1.12rem; color: var(--muted); }
+code, .mono { font-family: var(--font-mono); font-size: 0.88em; }
+code { background: var(--accent-soft); color: var(--fg); padding: 0.08em 0.35em; border-radius: 4px; overflow-wrap: anywhere; }
+header { display: grid; gap: 14px; }
+section { display: grid; gap: 18px; }
+
+/* Capabilities: what you can do now */
+.can { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.can article { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 18px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.cmd { font: 500 0.86rem/1.4 var(--font-mono); color: var(--accent); overflow-wrap: anywhere; }
+.can p { color: var(--muted); font-size: 0.96rem; }
+.caveat { border-left: 3px solid var(--open); padding: 10px 14px; background: var(--open-soft); border-radius: 0 6px 6px 0; max-width: 68ch; }
+
+/* Map */
+.map { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+.map svg { display: block; min-width: 860px; width: 100%; height: auto; }
+.n-box { fill: var(--bg); stroke: var(--line); stroke-width: 1.5; }
+.n-key { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+.n-title { fill: var(--fg); font: 700 14px var(--font-display); }
+.n-sub { fill: var(--muted); font: 400 11.5px var(--font-mono); }
+.edge { stroke: var(--accent); stroke-width: 2; fill: none; }
+.edge-dash { stroke: var(--muted); stroke-width: 1.5; fill: none; stroke-dasharray: 5 4; }
+.e-label { fill: var(--accent); font: 500 11.5px var(--font-mono); }
+.arrow { fill: var(--accent); }
+.arrow-muted { fill: var(--muted); }
+
+/* Status vocabulary */
+.statuses { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { font: 500 0.8rem/1 var(--font-mono); padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); }
+.chip.ok { color: var(--ok); background: var(--ok-soft); border-color: transparent; }
+.chip.open { color: var(--open); background: var(--open-soft); border-color: transparent; }
+.chip.warn { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+
+/* Timeline */
+.timeline { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; border-left: 2px solid var(--line); margin-left: 6px; }
+.timeline li { position: relative; padding: 0 0 22px 24px; display: grid; gap: 6px; }
+.timeline li::before { content: ""; position: absolute; left: -7px; top: 6px; width: 12px; height: 12px; border-radius: 50%; background: var(--ok); border: 2px solid var(--bg); }
+.timeline li.pending::before { background: var(--open); }
+.t-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: baseline; }
+.t-id { font: 700 0.95rem var(--font-mono); color: var(--accent); }
+.t-meta { font: 400 0.82rem var(--font-mono); color: var(--muted); }
+.timeline p { color: var(--muted); max-width: 68ch; }
+
+/* Ledger */
+.ledger-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 0.95rem; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 500 0.78rem var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+td.sha { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--accent); }
+.next { background: var(--panel); border: 1px solid var(--accent); border-radius: 8px; padding: 18px; display: grid; gap: 10px; }
+.next ol { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
+footer { color: var(--muted); font-size: 0.85rem; }
+a { color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <span class="eyebrow">switchboard · Phase R-A · wrapped 2026-11-09</span>
+  <h1>Switchboard Model Registry</h1>
+  <p class="lede col">One committed table now says which model and effort each role runs on Claude and on Codex. Switchboard turns that table into each host's own role files, and checks afterwards what a dispatch actually ran.</p>
+</header>
+
+<section>
+  <h2>What you can do now</h2>
+  <div class="can">
+    <article>
+      <span class="cmd">inspect --roles</span>
+      <h3>Read the table</h3>
+      <p>See every role with its requested Claude and Codex model, effort and cited claim, plus the latest observed value per host.</p>
+    </article>
+    <article>
+      <span class="cmd">apply · apply --write</span>
+      <h3>Generate role files</h3>
+      <p>Preview, then write <code>role-&lt;role&gt;</code> files for both hosts. Switchboard only overwrites or prunes files its ledger proves it wrote.</p>
+    </article>
+    <article>
+      <span class="cmd">observe --host claude|codex --latest</span>
+      <h3>Record what ran</h3>
+      <p>Read model, effort and agent type from the newest host transcript (never message text) and append a receipt.</p>
+    </article>
+  </div>
+  <p class="caveat">All of this is proven against synthetic fixtures and a temporary home. The first run against your real home, and the proof that a dispatch by role name runs the generated model, is the R5 live probe (Manual UAT M2).</p>
+</section>
+
+<section>
+  <h2>How a role travels</h2>
+  <p class="col">The registry is the requested value, the ledger is what was resolved into files, and receipts are what the host observed. <code>inspect --roles</code> puts requested and observed side by side.</p>
+  <div class="map" role="img" aria-label="Flow: registry/models.json feeds apply, which writes Claude and Codex role files under the ownership ledger; a host dispatch by role name leaves a transcript; observe reads it into receipts.jsonl; inspect --roles joins receipts with the registry.">
+    <svg viewBox="0 0 900 300" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrow" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="ahm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="arrow-muted" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+      <!-- registry -->
+      <rect class="n-key" x="10" y="40" width="170" height="72" rx="8"/>
+      <text class="n-title" x="24" y="68">Registry</text>
+      <text class="n-sub" x="24" y="88">registry/models.json</text>
+      <text class="n-sub" x="24" y="103">committed, reviewed</text>
+      <!-- apply -->
+      <rect class="n-box" x="250" y="40" width="160" height="72" rx="8"/>
+      <text class="n-title" x="264" y="68">apply --write</text>
+      <text class="n-sub" x="264" y="88">ledger: sha256 per file</text>
+      <text class="n-sub" x="264" y="103">~/.switchboard/generated.json</text>
+      <!-- role files -->
+      <rect class="n-box" x="480" y="16" width="190" height="56" rx="8"/>
+      <text class="n-title" x="494" y="40">Claude role files</text>
+      <text class="n-sub" x="494" y="58">~/.claude/agents/role-*.md</text>
+      <rect class="n-box" x="480" y="84" width="190" height="56" rx="8"/>
+      <text class="n-title" x="494" y="108">Codex role files</text>
+      <text class="n-sub" x="494" y="126">~/.codex/agents/role-*.toml</text>
+      <!-- dispatch -->
+      <rect class="n-box" x="730" y="40" width="160" height="72" rx="8"/>
+      <text class="n-title" x="744" y="68">Dispatch by role</text>
+      <text class="n-sub" x="744" y="88">subagent_type /</text>
+      <text class="n-sub" x="744" y="103">agentType role-*</text>
+      <!-- transcript -> observe -> receipts -> inspect (bottom row, right to left) -->
+      <rect class="n-box" x="730" y="200" width="160" height="72" rx="8"/>
+      <text class="n-title" x="744" y="228">observe</text>
+      <text class="n-sub" x="744" y="248">metadata only</text>
+      <text class="n-sub" x="744" y="263">exit 2 if no model seen</text>
+      <rect class="n-box" x="480" y="200" width="190" height="72" rx="8"/>
+      <text class="n-title" x="494" y="228">Receipts</text>
+      <text class="n-sub" x="494" y="248">~/.switchboard/</text>
+      <text class="n-sub" x="494" y="263">receipts.jsonl</text>
+      <rect class="n-key" x="10" y="200" width="400" height="72" rx="8"/>
+      <text class="n-title" x="24" y="228">inspect --roles</text>
+      <text class="n-sub" x="24" y="248">requested vs observed per host:</text>
+      <text class="n-sub" x="24" y="263">match · mismatch · inherit · unknown</text>
+      <!-- edges -->
+      <path class="edge" d="M180 76 H246" marker-end="url(#ah)"/>
+      <path class="edge" d="M410 66 C445 66 445 44 476 44" marker-end="url(#ah)"/>
+      <path class="edge" d="M410 86 C445 86 445 112 476 112" marker-end="url(#ah)"/>
+      <path class="edge" d="M670 44 C700 44 700 66 726 66" marker-end="url(#ah)"/>
+      <path class="edge" d="M670 112 C700 112 700 86 726 86" marker-end="url(#ah)"/>
+      <path class="edge" d="M810 112 V196" marker-end="url(#ah)"/>
+      <text class="e-label" x="818" y="160">transcript</text>
+      <path class="edge" d="M730 236 H674" marker-end="url(#ah)"/>
+      <path class="edge" d="M480 236 H414" marker-end="url(#ah)"/>
+      <path class="edge-dash" d="M95 112 V196" marker-end="url(#ahm)"/>
+      <text class="e-label" x="103" y="160">requested value</text>
+    </svg>
+  </div>
+  <div class="statuses" aria-label="Observed status values">
+    <span class="chip ok">match</span>
+    <span class="chip warn">mismatch</span>
+    <span class="chip">inherit</span>
+    <span class="chip open">unknown</span>
+    <span class="chip">unattributed receipt (no agent type recorded)</span>
+  </div>
+</section>
+
+<section>
+  <h2>Steps shipped</h2>
+  <ol class="timeline">
+    <li>
+      <div class="t-head"><span class="t-id">R1</span><h3>Committed role registry read by inspect --roles</h3><span class="chip ok">done</span></div>
+      <span class="t-meta">#571 · checkpoint 1217d875 · 2026-11-08</span>
+      <p>The role table moved out of config into <code>registry/models.json</code>, validated by <code>registry.py</code>. Models are exact IDs or <code>inherit</code>; no aliases.</p>
+    </li>
+    <li>
+      <div class="t-head"><span class="t-id">R2</span><h3>apply generates Claude and Codex role definitions</h3><span class="chip ok">done</span></div>
+      <span class="t-meta">#572 · pre-land 8fb20243 · checkpoint 29c167fc · 2026-11-09</span>
+      <p>Dry run by default. Writes and prunes only ledger-owned, unedited files, including a re-hash at delete time so a hand edit made after the plan survives.</p>
+    </li>
+    <li>
+      <div class="t-head"><span class="t-id">R3</span><h3>observe records requested-versus-observed receipts</h3><span class="chip ok">done</span></div>
+      <span class="t-meta">#573 · pre-land 9d3cbc7d · checkpoint be6d94b0 · 2026-11-09</span>
+      <p>Receipts carry <span class="mono">ts, host, role, agent_type, requested and observed model and effort, source_locator, registry_sha256</span>. A missing home directory is reported as data, not a traceback; #582 owns the two remaining unguarded sites.</p>
+    </li>
+    <li>
+      <div class="t-head"><span class="t-id">R4</span><h3>Park local offload</h3><span class="chip ok">done</span></div>
+      <span class="t-meta">#574 (still open) · 2026-11-08</span>
+      <p>Every offload call site is set <code>false</code> in the live config.</p>
+    </li>
+    <li class="pending">
+      <div class="t-head"><span class="t-id">R5</span><h3>Live role-dispatch probe</h3><span class="chip open">your move</span></div>
+      <span class="t-meta">#575 · plan Manual UAT M2</span>
+      <p>Four real paths must show <span class="mono">observed_model == requested_model</span>: the Agent tool in VS Code, a Workflow agent, <code>claude -p</code>, and a Codex spawn. A failing path holds its migration and returns to plan-redline.</p>
+    </li>
+  </ol>
+</section>
+
+<section>
+  <h2>Where it landed</h2>
+  <div class="ledger-wrap">
+    <table>
+      <thead><tr><th>What</th><th>Where</th><th>State</th></tr></thead>
+      <tbody>
+        <tr><td>Phase wrap commit</td><td class="sha">e50e8753</td><td>pushed to origin/master</td></tr>
+        <tr><td>R3 checkpoint</td><td class="sha">be6d94b0</td><td>pushed</td></tr>
+        <tr><td>R2 checkpoint</td><td class="sha">29c167fc</td><td>pushed</td></tr>
+        <tr><td>R1 checkpoint</td><td class="sha">1217d875</td><td>pushed</td></tr>
+        <tr><td>Posterity issue</td><td class="sha">#583</td><td>created and closed</td></tr>
+        <tr><td>Sibling: remaining <code>Path.home()</code> guards</td><td class="sha">#582</td><td>open</td></tr>
+        <tr><td>Quality gates</td><td class="sha">368 / 370</td><td>2 skipped; mypy --strict and ruff clean</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="next">
+    <h3>Next</h3>
+    <ol>
+      <li>Manual UAT M1: accept the no-home scope R3 recorded in its plan step.</li>
+      <li>Manual UAT M2: run the R5 live probe from a fresh VS Code window and PowerShell in <code>dev\switchboard</code>.</li>
+      <li>Then Phase R-B: R6 after measure-twice R-MT1 lands; R7 after R5 passes.</li>
+    </ol>
+  </div>
+</section>
+
+<footer>Plan: <code>switchboard/docs/plans/master_plan.md</code> (Phase R-A section and Manual UAT). Generated by /repo-update.</footer>
+
+</div>
+</body>
+</html>
