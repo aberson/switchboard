@@ -1493,7 +1493,7 @@ measure-twice build or release.
 - **Type:** code
 - **Issue:** #572
 - **Flags:** --reviewers deep --isolation worktree --max-iter 12
-- **Status:** BLOCKED (2026-11-08)
+- **Status:** DONE (2026-11-09)
 - **Files:** `switchboard/switchboard/generate.py` (new), `switchboard/switchboard/cli.py`,
   `switchboard/tests/test_generate.py` (new), `switchboard/README.md`, `switchboard/CLAUDE.md`
 - **Produces:** `python -m switchboard apply [--write] [--prune] [--home <dir>] [--registry <path>]

@@ -36,6 +36,8 @@ from switchboard.generate import (
     HOST_FILE_SUFFIXES,
     PROVENANCE_MARKER,
     SUBAGENT_OVERRIDE_ENV_VARS,
+    FilePlan,
+    LedgerEntry,
     render_claude,
 )
 from switchboard.registry import (
@@ -779,6 +781,55 @@ def test_prune_removes_only_ledger_owned_hash_matching_files(
     rc, out, _ = _apply(env, capsys, "--prune", "--write")
     assert rc == 0 and len(_plan_lines(out, "forget")) == 1
     assert len(_ledger(env.home)["files"]) == N_FILES
+
+
+def test_prune_refuses_a_hand_edit_made_after_the_plan_before_the_delete(
+    env: Env, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Generate one extra role while the vocabulary includes it, then retire it.
+    monkeypatch.setattr(registry_module, "ALLOWED_ROLES", (*ALLOWED_ROLES, "retired"))
+    doc = _committed()
+    doc["roles"]["retired"] = {**copy.deepcopy(doc["roles"]["reviewer"]), "claim_id": "c-retired"}
+    assert _apply(env, capsys, "--write", registry=_write_registry(env, doc, "wide.json"))[0] == 0
+    monkeypatch.setattr(registry_module, "ALLOWED_ROLES", ALLOWED_ROLES)
+    target = _claude_path(env.home, "retired")
+    sibling = _codex_path(env.home, "retired")
+    target_key = target.relative_to(env.home).as_posix()
+    sibling_key = sibling.relative_to(env.home).as_posix()
+    recorded = _ledger(env.home)["files"][target_key]
+    assert recorded["sha256"] == _sha(target) and sibling_key in _ledger(env.home)["files"]
+    edited = target.read_bytes() + b"\nhand edit made after the plan\n"
+    real_apply_one: Callable[[FilePlan, dict[str, LedgerEntry]], FilePlan] = (
+        generate_module._apply_one
+    )
+    edited_at: list[str] = []
+
+    def editing_apply_one(item: FilePlan, entries: dict[str, LedgerEntry]) -> FilePlan:
+        # The plan saw the owned, hash-matching bytes and chose delete; the hand edit lands
+        # between that plan and the delete being carried out.
+        if item.action == "delete" and item.path == target:
+            target.write_bytes(edited)
+            edited_at.append(item.action)
+        return real_apply_one(item, entries)
+
+    monkeypatch.setattr(generate_module, "_apply_one", editing_apply_one)
+
+    rc, out, err = _apply(env, capsys, "--prune", "--write")
+
+    assert rc == 0, err  # a refusal is a reported plan state, not an error
+    assert edited_at == ["delete"]  # the race was injected at the delete, not the plan
+    assert target.read_bytes() == edited  # the hand-edited file survives
+    refused = _plan_lines(out, "refuse")
+    assert len(refused) == 1 and "role-retired.md" in refused[0]
+    assert "changed after the plan; not pruned" in refused[0]
+    deleted = _plan_lines(out, "delete")
+    assert len(deleted) == 1 and "role-retired.toml" in deleted[0]
+    assert not sibling.exists()  # the untouched sibling is still pruned
+    files = _ledger(env.home)["files"]
+    assert files[target_key] == recorded  # its ledger entry is kept as recorded
+    assert sibling_key not in files
+    assert len(files) == N_FILES + 1
+    assert "1 change(s) written" in out
 
 
 # --- Advisory lines (never errors) ---------------------------------------------------------
