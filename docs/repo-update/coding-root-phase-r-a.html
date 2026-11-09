@@ -138,7 +138,7 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       <p>Read model, effort and agent type from the newest host transcript (never message text) and append a receipt.</p>
     </article>
   </div>
-  <p class="caveat">All of this is proven against synthetic fixtures and a temporary home. The first run against your real home, and the proof that a dispatch by role name runs the generated model, is the R5 live probe (Manual UAT M2).</p>
+  <p class="caveat">Proven on the real hosts on 2026-11-09 (R5). A dispatch by role name ran exactly the pinned model and effort on all four paths: the Agent tool and a Workflow agent in VS Code, <code>claude -p</code>, and a Codex spawn. On the headless paths the parent session ran a different model, so the match comes from the role file, not from inheritance.</p>
 </section>
 
 <section>
@@ -231,10 +231,10 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       <span class="t-meta">#574 (still open) · 2026-11-08</span>
       <p>Every offload call site is set <code>false</code> in the live config.</p>
     </li>
-    <li class="pending">
-      <div class="t-head"><span class="t-id">R5</span><h3>Live role-dispatch probe</h3><span class="chip open">your move</span></div>
-      <span class="t-meta">#575 · plan Manual UAT M2</span>
-      <p>Four real paths must show <span class="mono">observed_model == requested_model</span>: the Agent tool in VS Code, a Workflow agent, <code>claude -p</code>, and a Codex spawn. A failing path holds its migration and returns to plan-redline.</p>
+    <li>
+      <div class="t-head"><span class="t-id">R5</span><h3>Live role-dispatch probe</h3><span class="chip ok">done</span></div>
+      <span class="t-meta">#575 · 9eda81aa · 2026-11-09</span>
+      <p>All four real paths showed <span class="mono">observed_model == requested_model</span> with a recorded effort. <code>role-extractor</code> ran <span class="mono">claude-sonnet-5-5 / low</span> through the Agent tool, a Workflow agent and <code>claude -p</code>. <code>role-builder</code> ran <span class="mono">gpt-5.6-sol / medium</span> under a <span class="mono">gpt-6-astra</span> Codex parent. It needed the PATH Claude CLI at 2.1.311 and the Codex CLI at 0.167.0.</p>
     </li>
   </ol>
 </section>
@@ -245,11 +245,14 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     <table>
       <thead><tr><th>What</th><th>Where</th><th>State</th></tr></thead>
       <tbody>
-        <tr><td>Phase wrap commit</td><td class="sha">e50e8753</td><td>pushed to origin/master</td></tr>
+        <tr><td>R5 wrap commit</td><td class="sha">9014bb25</td><td>pushed to origin/master</td></tr>
+        <tr><td>Dispatch-proof seeds + observatory verb</td><td class="sha">9abe6eb7</td><td>pushed; task <code>obs: switchboard: run-roles</code></td></tr>
+        <tr><td>R5 status</td><td class="sha">9eda81aa</td><td>pushed; #575 closed</td></tr>
+        <tr><td>Phase wrap commit</td><td class="sha">e50e8753</td><td>pushed</td></tr>
         <tr><td>R3 checkpoint</td><td class="sha">be6d94b0</td><td>pushed</td></tr>
         <tr><td>R2 checkpoint</td><td class="sha">29c167fc</td><td>pushed</td></tr>
         <tr><td>R1 checkpoint</td><td class="sha">1217d875</td><td>pushed</td></tr>
-        <tr><td>Posterity issue</td><td class="sha">#583</td><td>created and closed</td></tr>
+        <tr><td>Posterity issues</td><td class="sha">#583, #584</td><td>created and closed</td></tr>
         <tr><td>Sibling: remaining <code>Path.home()</code> guards</td><td class="sha">#582</td><td>open</td></tr>
         <tr><td>Quality gates</td><td class="sha">368 / 370</td><td>2 skipped; mypy --strict and ruff clean</td></tr>
       </tbody>
@@ -259,8 +262,8 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     <h3>Next</h3>
     <ol>
       <li>Manual UAT M1: accept the no-home scope R3 recorded in its plan step.</li>
-      <li>Manual UAT M2: run the R5 live probe from a fresh VS Code window and PowerShell in <code>dev\switchboard</code>.</li>
-      <li>Then Phase R-B: R6 after measure-twice R-MT1 lands; R7 after R5 passes.</li>
+      <li>Plan the standing proof point: hand <code>switchboard/docs/seeds/seed_dispatch_proof.md</code> to <code>/plan-feature</code>; its dev-observatory consumer seed follows it.</li>
+      <li>Phase R-B: R7 can start now that R5 has passed; R6 waits for measure-twice R-MT1.</li>
     </ol>
   </div>
 </section>
