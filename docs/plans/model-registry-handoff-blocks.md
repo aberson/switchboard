@@ -17,7 +17,7 @@ Adoption preconditions:
 - for skill-mesh, R2 is built and R5 passed;
 - for skill-mesh, the usage review's worktree `skill-mesh-q1-followups` is settled: branch
   `q1/usage-review-followups` (`7c35e03`) is merged or dropped, and its uncommitted judge-call prose in
-  goblin-suggest, review-deep, review-gauntlet, skill-evolve, skill-iterate and context-slim has landed
+  goblin-suggest (retired in Skill Mesh v3.0.0; now `/user-pm`), review-deep, review-gauntlet, skill-evolve, skill-iterate and context-slim has landed
   or been dropped. R-SM3 and R-SM4 edit the same files, so re-verify their line citations afterwards.
 
 Once a block is adopted, the target plan is authoritative and this appendix points to it.
@@ -77,9 +77,10 @@ Once a block is adopted, the target plan is authoritative and this appendix poin
   - citation: `skills/citation-review/core.md:52` and `skills/citation-sweep/core.md:43` (declare
     `inherit`).
   - skill-eval-setup: `skills/skill-eval-setup/core.md:422,584,650`.
-  - Workflows: `_shared/score_skill.workflow.js` (declare `inherit`), and the goblin-suggest workflow
-    (locate the canonical source first; only the installed copy was found).
-  - Judges: `skills/judge-ui/core.md:80-83`, `skills/judge-motion/providers/claude.md:124,195`.
+  - Workflows: `_shared/score_skill.workflow.js` (declare `inherit`). The goblin-suggest workflow left
+    with that skill, retired in Skill Mesh v3.0.0 (now `/user-pm`); it is no longer a site.
+  - Judges: `skills/judge-ui/core.md:80-83`. judge-motion was retired in Skill Mesh v3.0.0 with no
+    replacement (motion checks are manual-check steps or project-local skills), so its sites are gone.
   - Final judges: `skills/user-uat/core.md:136,156`, `skills/lesson-harvest/core.md:278,310`.
 - **Produces:**
   - The listed launches name roles or `inherit`.
