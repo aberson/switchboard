@@ -1,13 +1,94 @@
 # switchboard
 
-Local-LLM offload core for Switchboard Phase 1. Routes cheap judgment calls (style lens,
-overnight grader, ...) to a local OpenAI-compatible model (`coder-30b` via llama-swap on
-`localhost:8080`) and **defers to Claude on any failure**.
+## Overview
 
-Built to the D1 contract pinned in
-[`docs/investigations/switchboard-spike.md`](../docs/investigations/switchboard-spike.md)
-(issue #203). The throwaway spike prototype
-(`scripts/switchboard_spike_local_judge.py`) is replaced by this package.
+Switchboard is a small command-line tool and Python package (standard library only) with two
+jobs:
+
+- **Role registry and `apply`.** `registry/models.json` pins, for each agent role, the Claude
+  and Codex model and effort it runs with. `switchboard apply` renders that registry into
+  host-native role files (`~/.claude/agents/role-<role>.md`, `~/.codex/agents/role-<role>.toml`)
+  under an ownership ledger, and `switchboard observe` records which model a dispatch actually
+  ran.
+- **Local judge offload (optional, off by default).** Routes cheap judgment calls (style lens,
+  overnight grader, ...) to a local OpenAI-compatible model (`coder-30b` via llama-swap on
+  `localhost:8080`) and **defers to Claude on any failure**. With no config, every judge call
+  defers and nothing contacts an endpoint.
+
+## Why
+
+Skills that dispatch sub-agents by role need one reviewed place that says which model each
+role uses on each host, or every host drifts to its own default. A model swap here is one
+reviewed commit to the registry, and `apply` never overwrites a file it cannot prove it wrote.
+The judge offload exists so that a call a small local model can answer costs no hosted tokens,
+while any failure falls back to the existing Claude path.
+
+## Install
+
+Prerequisites: Python 3.12 or newer and [uv](https://docs.astral.sh/uv/). From the root of a
+checkout of this repository:
+
+```
+uv sync --extra dev
+```
+
+This installs the `switchboard` console command into the project environment. Run it as
+`uv run switchboard <subcommand> ...`; `uv run python -m switchboard <subcommand> ...` is the
+same CLI (both resolve to `switchboard.cli:main`).
+
+## Quick start
+
+Print the role registry table. It reads only the committed registry (and any receipts under
+your home directory); it never reads offload config or contacts an endpoint, and it always
+exits 0:
+
+```
+uv run switchboard inspect --roles
+```
+
+Then preview the role files the registry defines (nothing is written without `--write`; see
+"Generating role files" below):
+
+```
+uv run switchboard apply
+```
+
+## Verification
+
+Run the test suite (it never touches the network; the HTTP boundary is stubbed), then the
+version check the companion installer uses as its health check:
+
+```
+uv run pytest
+uv run switchboard --version
+```
+
+`--version` prints `switchboard <version>` and exits 0.
+
+## Supported platforms
+
+Verified on Windows 11 with Python 3.12+ and uv: the test suite above passes there. The
+optional endpoint launcher (`scripts/*.ps1`) is Windows PowerShell and starts llama-swap inside
+WSL2. macOS and Linux have not been verified.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
+
+## Exit codes
+
+| Command | Exit codes |
+|---|---|
+| `judge` | always `0` on a well-formed invocation: the caller reads the JSON verdict or defer, not the exit code |
+| `bakeoff` | `0` scored; `2` malformed suite |
+| `config` | `0` valid; `1` invalid config (the message names the defect) |
+| `inspect` | always `0`; registry and receipts problems are reported as states in the output |
+| `apply` | `0` plan computed (and carried out with `--write`); `1` a write, delete or ledger update failed; `2` bad registry or `--home` |
+| `observe` | `0` receipt appended; `1` the append failed; `2` bad registry, home or transcript |
+| `--version` | `0` |
+
+A usage error (unknown or missing arguments) exits `2` from argparse for every command. The
+sections below give each command's details.
 
 ## Modules
 
@@ -99,7 +180,7 @@ uv run python -m switchboard apply --prune --write
 
 Options: `--home <dir>` (default: your home directory, `Path.home()`), `--registry <path>` (same
 resolution as `inspect`: `--registry`, then `$SWITCHBOARD_REGISTRY`, then the committed file) and
-`--catalog <spawn-sites.json>` (coverage advisories, below).
+`--catalog <catalog.json>` (coverage advisories, below).
 
 **What is written.** For every registry row, on both hosts:
 
@@ -163,10 +244,12 @@ last-generated files stay byte-identical.
   (only the current directory when there is no git root). A project agent beats the user-level
   one. The user-level directory under `--home` is never treated as a project directory.
 - With `--catalog`, one line per catalog role that has no registry row (a dispatch by it falls
-  back to the default agent, `role_missing`). The catalog is skill-mesh's
-  `config/spawn-sites.json`, read as `{"schema_version": 1, "sites": {"<site-id>": "<role>" |
-  "inherit"}}`; `inherit` sites need no row and other top-level keys are ignored. A missing or
-  malformed catalog is one advisory line, never a crash.
+  back to the default agent, `role_missing`). The catalog is a file you supply, read as
+  `{"schema_version": 1, "sites": {"<site-id>": "<role>" | "inherit"}}`; `inherit` sites need no
+  row and other top-level keys are ignored. No catalog ships with switchboard or with
+  skill-mesh today: the planned skill-mesh `config/spawn-sites.json` was never created, so
+  without `--catalog` site coverage is simply not checked. A missing or malformed catalog is one
+  advisory line, never a crash.
 
 `apply` writes role definitions only. Whether a host dispatch honors them is proven live
 (Step R5), not by these tests.
@@ -350,7 +433,7 @@ falls back to Claude. The `config` subcommand is the loud counterpart — it exi
 prints the validation error so you can fix it. `build-step-style` stays disabled even when a
 config enables other sites (Switchboard Decision 3 — the local model never owns a gate).
 
-## Dev
+## Development
 
 ```
 uv sync --extra dev

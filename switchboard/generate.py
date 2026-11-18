@@ -1,7 +1,7 @@
 """``python -m switchboard apply``: render the role registry into host-native role files.
 
     python -m switchboard apply [--write] [--prune] [--home <dir>] [--registry <path>]
-                                [--catalog <spawn-sites.json>]
+                                [--catalog <catalog.json>]
 
 For every registry row it renders two files (decisions R-D7, R-D8 and R-D9):
 
@@ -120,7 +120,9 @@ LEDGER_TOP_LEVEL_FIELDS: tuple[str, ...] = ("schema_version", "files")
 LEDGER_ENTRY_FIELDS: tuple[str, ...] = ("sha256", "role", "host")
 LedgerState = Literal["absent", "ok", "corrupt"]
 
-# --- Spawn-site catalog (skill-mesh ``config/spawn-sites.json``, decision R-D1) -------------
+# --- Spawn-site catalog (a caller-supplied file, decision R-D1) ------------------------------
+# R-D1 planned it as skill-mesh's config/spawn-sites.json; that file was never created, so no
+# catalog ships anywhere today and --catalog is the only source.
 CATALOG_SCHEMA_VERSION = 1
 
 # --- Plan vocabulary ------------------------------------------------------------------------

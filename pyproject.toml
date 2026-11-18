@@ -3,8 +3,14 @@ name = "switchboard"
 version = "0.1.0"
 description = "Local-LLM offload core: route cheap judgment calls to a local model, defer to Claude on any failure."
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = []
+
+[project.scripts]
+# The console command and `python -m switchboard <subcommand>` share switchboard.cli:main.
+switchboard = "switchboard.cli:main"
 
 [project.optional-dependencies]
 dev = [

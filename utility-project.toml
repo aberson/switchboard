@@ -1,0 +1,26 @@
+schema_version = 1
+
+[project]
+name = "switchboard"
+product_shape = "standalone-cli"
+publication_shape = "public"
+maturity = "experimental"
+license_spdx = "MIT"
+
+[readme]
+path = "README.md"
+modules = ["exit-codes", "development"]
+
+[commands]
+install = "uv sync --extra dev"
+quickstart = "uv run switchboard inspect --roles"
+verify = "uv run pytest"
+
+[publication]
+overlay_strategy = "none"
+remote_audit = false
+
+[[platform]]
+name = "Windows 11 (Python 3.12+, uv)"
+verification_state = "verified"
+evidence = "tests/test_entrypoints.py"

@@ -9,6 +9,12 @@
     python -m switchboard observe --host claude|codex
                                   (--transcript PATH | --latest [--project-dir DIR])
                                   [--home DIR] [--registry PATH]
+    python -m switchboard --version
+
+The installed ``switchboard`` console command resolves to this module's ``main`` too, so
+``switchboard <subcommand> ...`` and ``python -m switchboard <subcommand> ...`` are the same
+CLI. ``--version`` prints ``switchboard <version>`` (the installed distribution's version, read
+from package metadata so ``pyproject.toml`` stays its one source) and exits 0.
 
 ``--site`` is the canonical flag the wired SKILL.md prose passes (the call-site task_class);
 ``--slice`` is a back-compat alias for the same value. Exactly one must be given.
@@ -81,6 +87,7 @@ import json
 import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from importlib import metadata
 from pathlib import Path
 from typing import Literal
 
@@ -726,10 +733,32 @@ def _run_observe(
     return 0
 
 
+DISTRIBUTION_NAME = "switchboard"
+UNKNOWN_VERSION = "0+unknown"
+
+
+def package_version() -> str:
+    """The installed distribution's version (``pyproject.toml`` is its one source).
+
+    Imported straight from a source tree that was never installed, there is no metadata; the
+    CLI then reports ``0+unknown`` rather than crashing, so ``--version`` stays a total check.
+    """
+    try:
+        return metadata.version(DISTRIBUTION_NAME)
+    except metadata.PackageNotFoundError:
+        return UNKNOWN_VERSION
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m switchboard",
         description="Switchboard local-offload entrypoints.",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"{DISTRIBUTION_NAME} {package_version()}",
+        help="print the installed switchboard version and exit 0",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
