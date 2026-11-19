@@ -71,6 +71,14 @@ Verified on Windows 11 with Python 3.12+ and uv: the test suite above passes the
 optional endpoint launcher (`scripts/*.ps1`) is Windows PowerShell and starts llama-swap inside
 WSL2. macOS and Linux have not been verified.
 
+## Changelog
+
+- **0.1.1**: the wheel ships the role registry as package data, so an installed tool
+  (`uv tool install`) finds it. A checkout still reads `registry/models.json` first (edits apply
+  without a rebuild); an install without a repository copy reads the packaged copy (registry
+  source `package:<path>`). `--registry` and `$SWITCHBOARD_REGISTRY` keep their precedence.
+- **0.1.0**: first tagged release: `switchboard` console command and `--version`.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
@@ -109,7 +117,9 @@ sections below give each command's details.
   effort level or `inherit`, plus `description`, `read_only`, the cited measure-twice `claim_id`
   and an optional `evidence` note. `inherit` means no key is written, so the host resolves as it
   does today. `load_registry()` resolves `--registry <path>` → `$SWITCHBOARD_REGISTRY` → the
-  committed file and never raises: a missing file is `absent`, a bad one `invalid`. Validation
+  committed file (the checkout's `registry/models.json`, or in an installed wheel without one,
+  the packaged copy `switchboard/_registry/models.json`) and never raises: a missing file is
+  `absent`, a bad one `invalid`. Validation
   rejects bare aliases (`haiku|sonnet|opus|fable`) and any model without a digit, any model
   containing `fable` in any case (Fable is never pinned), unknown or missing roles and hosts,
   and an effort the row's host lacks (Claude rows use `ALLOWED_EFFORT_TIERS`; Codex rows use

@@ -1,15 +1,20 @@
 """Switchboard model registry: the committed role -> per-host model and effort table.
 
-The registry is ``switchboard/registry/models.json`` (schema v1), committed so git history is
-the swap audit trail (decision R-P1). One row per role names, for each host (``claude`` and
-``codex``), an exact model ID or ``inherit`` and an effort level or ``inherit``, plus the
-measure-twice ``claim_id`` the row cites. ``inherit`` means no key is written for that host,
-so the host resolves exactly as it does today.
+The registry is ``registry/models.json`` at the repository root (schema v1), committed so git
+history is the swap audit trail (decision R-P1). One row per role names, for each host
+(``claude`` and ``codex``), an exact model ID or ``inherit`` and an effort level or ``inherit``,
+plus the measure-twice ``claim_id`` the row cites. ``inherit`` means no key is written for that
+host, so the host resolves exactly as it does today.
 
 Resolution order (first hit wins): an explicit ``--registry <path>``, then the
-``$SWITCHBOARD_REGISTRY`` environment variable, then the repo default. Loading never raises:
-a missing file is the ``absent`` state and any read, parse, or validation failure is the
-``invalid`` state, each carried as data with an error string (``load_registry``).
+``$SWITCHBOARD_REGISTRY`` environment variable, then the default. The default is the repository
+copy ``registry/models.json`` when it exists (a checkout, so an edit takes effect without a
+rebuild), else the copy the wheel packages at ``switchboard/_registry/models.json`` (an
+installed tool, which has no repository; the build copies the committed file, so the repository
+keeps the only hand-edited copy). When neither exists the repository path is reported
+``absent``. Loading never raises: a missing file is the ``absent`` state and any read, parse,
+or validation failure is the ``invalid`` state, each carried as data with an error string
+(``load_registry``).
 
 HONEST SCOPE: this module reads and validates the table. Nothing here dispatches by role or
 writes a host file; ``inspect --roles`` renders the requested values only.
@@ -32,8 +37,11 @@ REGISTRY_SCHEMA_VERSION = 1
 REGISTRY_ENV_VAR = "SWITCHBOARD_REGISTRY"
 REGISTRY_DIRECTORY_NAME = "registry"
 REGISTRY_FILENAME = "models.json"
+# Where the wheel puts its packaged copy, relative to the ``switchboard`` package directory
+# (``[tool.hatch.build.targets.wheel.force-include]`` in pyproject.toml).
+PACKAGED_REGISTRY_DIRECTORY_NAME = "_registry"
 # Public contract facts used by the observatory fixture and its drift test.
-REGISTRY_SOURCE_PRECEDENCE: tuple[str, ...] = ("arg", "env", "repo")
+REGISTRY_SOURCE_PRECEDENCE: tuple[str, ...] = ("arg", "env", "repo", "package")
 RegistryState = Literal["absent", "invalid", "ok"]
 REGISTRY_STATES: tuple[RegistryState, ...] = ("absent", "invalid", "ok")
 # The only keys the registry document may carry at its top level.
@@ -329,22 +337,47 @@ class RegistryResult:
 
 
 def _default_registry_path() -> Path:
-    """The committed repo default, ``switchboard/registry/models.json``.
+    """The committed repository copy, ``registry/models.json`` beside the package directory.
 
     Factored into its own function so tests can monkeypatch it.
     """
     return Path(__file__).resolve().parent.parent / REGISTRY_DIRECTORY_NAME / REGISTRY_FILENAME
 
 
+def _packaged_registry_path() -> Path:
+    """The copy an installed wheel carries, ``switchboard/_registry/models.json``.
+
+    The build copies the committed ``registry/models.json`` here; a checkout has no such file.
+    Factored into its own function so tests can monkeypatch it.
+    """
+    return Path(__file__).resolve().parent / PACKAGED_REGISTRY_DIRECTORY_NAME / REGISTRY_FILENAME
+
+
+def _is_file(path: Path) -> bool:
+    try:
+        return path.is_file()
+    except (OSError, ValueError):
+        return False
+
+
 def _resolve_registry_source(path: str | None = None) -> tuple[str, str]:
-    """Return ``(source_label, candidate)`` by precedence without opening the file."""
+    """Return ``(source_label, candidate)`` by precedence without opening the file.
+
+    The default prefers the repository copy, so a checkout reads its committed file even if a
+    packaged copy exists, and falls back to the packaged copy only when the repository copy is
+    missing. With neither present the repository path is returned and loads as ``absent``.
+    """
     if path is not None:
         return f"arg:{path}", path
     env_path = os.environ.get(REGISTRY_ENV_VAR)
     if env_path:
         return f"env:{env_path}", env_path
-    default = str(_default_registry_path())
-    return f"repo:{default}", default
+    repo_default = _default_registry_path()
+    if not _is_file(repo_default):
+        packaged = _packaged_registry_path()
+        if _is_file(packaged):
+            return f"package:{packaged}", str(packaged)
+    return f"repo:{repo_default}", str(repo_default)
 
 
 def duplicate_key_rejector(
@@ -379,7 +412,11 @@ def load_registry(path: str | None = None) -> RegistryResult:
 
       1. explicit ``path`` (``--registry``)   -> source ``"arg:<path>"``
       2. ``$SWITCHBOARD_REGISTRY``            -> source ``"env:<path>"``
-      3. the committed repo default           -> source ``"repo:<path>"``
+      3. the committed repository copy        -> source ``"repo:<path>"``
+      4. else the wheel's packaged copy       -> source ``"package:<path>"``
+
+    Steps 3 and 4 are the default: the packaged copy is used only when the repository copy does
+    not exist (an installed tool); with neither present the repository path is ``absent``.
 
     A selected file that does not exist is ``absent``; one that cannot be read, is not JSON, or
     fails validation is ``invalid``. Both carry an error string and no rows.

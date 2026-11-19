@@ -253,7 +253,11 @@
       },
       {
         "label": "repo",
-        "meaning": "committed switchboard/registry/models.json"
+        "meaning": "committed switchboard/registry/models.json, when it exists (a repository checkout)"
+      },
+      {
+        "label": "package",
+        "meaning": "the copy of registry/models.json packaged in the installed wheel (switchboard/_registry/models.json), used only when the repo copy does not exist"
       }
     ],
     "states": [

@@ -13,6 +13,7 @@ import json
 import os
 import subprocess
 import sys
+import tomllib
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -182,12 +183,85 @@ def test_missing_selected_file_is_absent_not_a_crash(
         result = load_registry()
     else:
         monkeypatch.setattr("switchboard.registry._default_registry_path", lambda: missing)
+        monkeypatch.setattr(
+            "switchboard.registry._packaged_registry_path", lambda: tmp_path / "pkg" / "none.json"
+        )
         result = load_registry()
 
     assert result.state == "absent"
     assert result.source == f"{tier}:{missing}"
     assert result.roles == ()
     assert result.error is not None and "not found" in result.error
+
+
+# --- The default: the repository copy first, then the copy packaged in the wheel -----------
+
+
+def test_checkout_reads_the_repository_copy_even_when_a_packaged_copy_exists(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repo_doc = _committed()
+    repo_doc["roles"]["reviewer"]["claude"]["model"] = "claude-opus-5-5"
+    packaged_doc = _committed()
+    packaged_doc["roles"]["reviewer"]["claude"]["model"] = "claude-haiku-5-5"
+    repo_path = _write(tmp_path, repo_doc, "repo.json")
+    packaged_path = _write(tmp_path, packaged_doc, "packaged.json")
+    monkeypatch.setattr("switchboard.registry._default_registry_path", lambda: repo_path)
+    monkeypatch.setattr("switchboard.registry._packaged_registry_path", lambda: packaged_path)
+
+    result = load_registry()
+
+    # A checkout edit takes effect without a rebuild: the repository copy wins.
+    assert result.state == "ok"
+    assert result.source == f"repo:{repo_path}"
+    assert {r.role: r for r in result.roles}["reviewer"].claude.model == "claude-opus-5-5"
+
+
+def test_installed_tool_without_a_repository_copy_reads_the_packaged_copy(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    packaged_path = _write(tmp_path, _committed(), "packaged.json")
+    monkeypatch.setattr(
+        "switchboard.registry._default_registry_path", lambda: tmp_path / "no-repo" / "models.json"
+    )
+    monkeypatch.setattr("switchboard.registry._packaged_registry_path", lambda: packaged_path)
+
+    result = load_registry()
+
+    assert result.state == "ok"
+    assert result.source == f"package:{packaged_path}"
+    assert [row.role for row in result.roles] == list(ALLOWED_ROLES)
+
+
+def test_arg_and_env_still_outrank_the_packaged_copy(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    packaged_path = _write(tmp_path, _committed(), "packaged.json")
+    arg_path = _write(tmp_path, _committed(), "arg.json")
+    env_path = _write(tmp_path, _committed(), "env.json")
+    monkeypatch.setattr(
+        "switchboard.registry._default_registry_path", lambda: tmp_path / "no-repo" / "models.json"
+    )
+    monkeypatch.setattr("switchboard.registry._packaged_registry_path", lambda: packaged_path)
+    monkeypatch.setenv(REGISTRY_ENV_VAR, str(env_path))
+
+    assert load_registry(str(arg_path)).source == f"arg:{arg_path}"
+    assert load_registry().source == f"env:{env_path}"
+
+
+def test_packaged_path_is_the_wheel_force_include_target() -> None:
+    # One source of truth: pyproject's force-include maps the committed file to the exact path
+    # the resolver reads, relative to the package directory.
+    with (PROJECT_ROOT / "pyproject.toml").open("rb") as source:
+        wheel = tomllib.load(source)["tool"]["hatch"]["build"]["targets"]["wheel"]
+    package_dir = Path(registry_module.__file__).resolve().parent
+    target = registry_module._packaged_registry_path().relative_to(package_dir.parent).as_posix()
+
+    assert wheel["force-include"] == {"registry/models.json": target}
+    assert (
+        registry_module._default_registry_path().relative_to(PROJECT_ROOT.resolve()).as_posix()
+        == "registry/models.json"
+    )
 
 
 # --- Validation: every rule is red on garbage ----------------------------------------------

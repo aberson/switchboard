@@ -38,7 +38,9 @@ table, and one bounded endpoint probe. ``inspect --roles --json`` prints only th
 table (role -> per-host model and effort, plus the cited ``claim_id``) and never probes the
 endpoint, so an external driver can read it without importing this package. The table is read
 from the committed registry (``--registry``, then ``$SWITCHBOARD_REGISTRY``, then the repo
-default); an absent or invalid registry is reported as data with exit 0. Row pins are requested
+default ``registry/models.json`` when it exists, so a checkout's edits apply without a rebuild,
+else the copy packaged in the installed wheel); an absent or invalid registry is reported as
+data with exit 0. Row pins are requested
 values: nothing here dispatches by role. Each row's ``observed`` value is, per host, the last
 receipt ``observe`` recorded for that role (``<home>/.switchboard/receipts.jsonl``, ``--home``
 defaulting to the user's home directory) compared with the row's current pin, or ``unknown``.

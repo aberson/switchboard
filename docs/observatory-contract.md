@@ -12,7 +12,8 @@ Switchboard validates and reports it but the local judge client does not consume
 as an unknown key.
 
 The `registry` section describes the committed `registry/models.json` (registry `schema_version`
-1): its resolution order (`--registry`, `SWITCHBOARD_REGISTRY`, the repo default), the `absent`,
+1): its resolution order (`--registry`, `SWITCHBOARD_REGISTRY`, the repo default, then the copy
+packaged in an installed wheel when no repo copy exists), the `absent`,
 `invalid` and `ok` states, the exact role vocabulary, row and host fields, the per-host effort
 levels, and the model rules (exact IDs or `inherit`; no bare aliases; no model containing
 `fable` in any case, so no `claude-fable-*`).
